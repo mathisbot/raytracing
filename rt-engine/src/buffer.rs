@@ -13,8 +13,11 @@ use vulkano::{
     Validated,
 };
 
+/// The future type for sending a buffer to the device.
 pub type SendBufferFuture = FenceSignalFuture<CommandBufferExecFuture<sync::future::NowFuture>>;
 
+#[must_use = "The function returns a buffer that must be used"]
+/// Creates a new staging buffer.
 pub fn new_staging<T>(
     memory_allocator: &Arc<StandardMemoryAllocator>,
     data_len: u64,
@@ -37,6 +40,9 @@ where
     )
 }
 
+#[must_use = "The function returns a future that must be awaited and a buffer that must be used"]
+/// Sends the staging buffer to the device,
+/// returning the destination buffer and the send future.
 pub fn send_staging_to_device<T>(
     memory_allocator: &Arc<StandardMemoryAllocator>,
     command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
@@ -82,6 +88,8 @@ where
     Ok((destination_buffer, future))
 }
 
+#[must_use = "The function returns a buffer that must be used"]
+/// Creates a new uniform buffer.
 pub fn new_uniform<T>(
     memory_allocator: &Arc<StandardMemoryAllocator>,
 ) -> Result<Subbuffer<T>, Validated<AllocateBufferError>>

@@ -3,6 +3,8 @@ use vulkano::padded::Padded;
 
 impl Bvh {
     #[must_use]
+    #[inline]
+    /// Compute the cost of a BVH node
     fn bvh_cost(min_bound: [f32; 3], max_bound: [f32; 3], count: u32) -> f64 {
         let dx = max_bound[0] - min_bound[0];
         let dy = max_bound[1] - min_bound[1];
@@ -17,6 +19,7 @@ impl Bvh {
     }
 
     #[inline]
+    /// Grow the bounding box to include the given point
     fn grow_to_include(min_bound: &mut [f32; 3], max_bound: &mut [f32; 3], point: &[f32; 3]) {
         min_bound[0] = min_bound[0].min(point[0]);
         min_bound[1] = min_bound[1].min(point[1]);
@@ -26,6 +29,7 @@ impl Bvh {
         max_bound[2] = max_bound[2].max(point[2]);
     }
 
+    #[must_use]
     /// Evaluate the cost of a split at the given position
     ///
     /// `split_axis` is the axis to split on, must be 0, 1, or 2
@@ -62,9 +66,12 @@ impl Bvh {
             + Self::bvh_cost(min_bound_right, max_bound_right, count_right)
     }
 
+    #[must_use]
     /// Find the best split position for the given axis
     fn choose_split(bvh: Self, triangles: &[Padded<Triangle, 8>]) -> (usize, f32, f64) {
+        /// The number of different split positions to test.
         const SPLIT_TEST_COUNT: u8 = 5;
+        /// The minimum number of triangles in a leaf node.
         const MIN_TRIANGLES: usize = 2;
 
         if triangles.len() <= MIN_TRIANGLES {
@@ -94,6 +101,7 @@ impl Bvh {
         (best_split_axis, best_split_pos, best_cost)
     }
 
+    /// Recursively split the BVH
     fn split(bvhs: &mut Vec<Padded<Self, 4>>, triangles: &mut [Padded<Triangle, 8>]) {
         let start_bvh_len = u32::try_from(bvhs.len()).expect("too many BVHs");
         let bvh = bvhs.last_mut().unwrap();
@@ -154,6 +162,7 @@ impl Bvh {
         }
     }
 
+    /// Build a BVH
     pub fn build(
         bvhs: &mut Vec<Padded<Self, 4>>,
         triangles: &mut [Padded<Triangle, 8>],

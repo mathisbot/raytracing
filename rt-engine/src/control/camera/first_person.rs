@@ -3,22 +3,49 @@ use super::super::Input;
 #[derive(Copy, Clone, Debug)]
 /// Represents a first person camera.
 pub struct FirstPerson {
+    /// The position of the camera.
     position: [f32; 3],
+    /// The direction the camera is facing.
+    ///
+    /// The direction is only stored for speed purposes,
+    /// the direction is only really computed when the pitch or yaw changes.
     direction: [f32; 3],
+    /// The up vector of the camera.
+    ///
+    /// The up vector is only stored for speed purposes,
+    /// the up vector is only really computed when the pitch or yaw changes.
     up: [f32; 3],
+    /// The right vector of the camera.
+    ///
+    /// The right vector is only stored for speed purposes,
+    /// the right vector is only really computed when the pitch or yaw changes.
     right: [f32; 3],
+    /// The yaw of the camera.
     yaw: f32,
+    /// The pitch of the camera.
     pitch: f32,
+    /// The speed of the camera.
     speed: f32,
+    /// The sensitivity of the camera.
     sensitivity: f32,
 }
 
 impl FirstPerson {
+    #[inline]
+    /// Sets the sensitivity of the camera.
     pub fn set_sentivity(&mut self, sensitivity: f32) {
         self.sensitivity = sensitivity;
     }
+
+    #[inline]
+    /// Sets the speed of the camera.
+    pub fn set_speed(&mut self, speed: f32) {
+        self.speed = speed;
+    }
 }
 
+#[inline]
+/// Normalizes in-place a 3D vector.
 fn normalize(v: &mut [f32; 3]) {
     let inv_length = 1.0 / (v[2].mul_add(v[2], v[0].mul_add(v[0], v[1] * v[1]))).sqrt();
     v[0] *= inv_length;
@@ -42,18 +69,26 @@ impl Default for FirstPerson {
 }
 
 impl super::Camera for FirstPerson {
+    #[must_use]
+    #[inline]
     fn direction(&self) -> [f32; 3] {
         self.direction
     }
 
+    #[must_use]
+    #[inline]
     fn position(&self) -> [f32; 3] {
         self.position
     }
 
+    #[must_use]
+    #[inline]
     fn up(&self) -> [f32; 3] {
         self.up
     }
 
+    #[must_use]
+    #[inline]
     fn right(&self) -> [f32; 3] {
         self.right
     }

@@ -24,16 +24,34 @@ pub struct AcquireError;
 pub struct PresentError;
 
 #[allow(clippy::module_name_repetitions)]
+/// The type of a render command buffer.
 pub type RenderCommandBuffer =
     Arc<vulkano::command_buffer::PrimaryAutoCommandBuffer<Arc<StandardCommandBufferAllocator>>>;
 
 #[allow(clippy::module_name_repetitions)]
+// TODO: enum render surface "one time" and "swapchain" ?
+/// Represents a render surface.
 pub trait RenderSurface {
+    /// Returns the size of the render surface.
     fn size(&self) -> (u32, u32);
+    /// Returns the views of the render surface.
+    ///
     /// Views must be in the same order as the one used for indexing when returning index from `acquire()`.
+    /// This function is used to generate command buffers.
     fn views(&self) -> &[Arc<ImageView>];
+    /// Acquires the next image view.
+    ///
     /// The returned index must be using the same order as the one used for `views()`.
+    ///
+    /// ## Errors
+    ///
+    /// This function returns an error if the image view cannot be acquired.
     fn acquire(&mut self) -> Result<(u32, Box<dyn vulkano::sync::GpuFuture>), AcquireError>;
+    /// Presents the rendered image.
+    ///
+    /// ## Errors
+    ///
+    /// This function returns an error if the image cannot be presented.
     fn present(
         &mut self,
         render_future: Box<dyn vulkano::sync::GpuFuture>,
@@ -42,22 +60,39 @@ pub trait RenderSurface {
 }
 
 #[derive(Clone)]
+/// Represents the buffers used by the renderer.
 pub struct Buffers {
+    /// The camera uniform buffer.
     pub camera_uniform: Subbuffer<crate::shader::CameraBuffer>,
+    /// The triangles buffer.
     pub triangles_buffer: Subbuffer<crate::shader::TrianglesBuffer>,
+    /// The materials buffer.
     pub materials_buffer: Subbuffer<crate::shader::Materials>,
+    /// The models buffer.
     pub models_buffer: Subbuffer<crate::shader::ModelsBuffer>,
+    /// The BVHs buffer.
     pub bvhs_buffer: Subbuffer<crate::shader::BvhBuffer>,
 }
 
+/// Represents a renderer.
 pub struct Renderer {
+    /// The queue used by the renderer.
     queue: Arc<Queue>,
+    /// The compute pipeline used by the renderer.
     pipeline: Arc<ComputePipeline>,
+    /// The render surface used by the renderer.
     render_surface: Box<dyn RenderSurface>,
+    /// The render command buffers used by the renderer.
     render_command_buffers: Box<[RenderCommandBuffer]>,
 }
 
 impl Renderer {
+    #[must_use]
+    /// Creates a new renderer.
+    ///
+    /// ## Panics
+    ///
+    /// This function panics if the renderer cannot be created, typically due to pipeline creation failure.
     pub fn new(
         device: &Arc<Device>,
         queue: &Arc<Queue>,
@@ -147,6 +182,12 @@ impl Renderer {
         }
     }
 
+    /// Recreates the command buffers, typically when the render surface is resized.
+    ///
+    /// ## Panics
+    ///
+    /// This function panics if the command buffers cannot be recreated, typically if the pipeline is out of date
+    /// or if the render surface is invalid.
     pub fn recreate_command_buffers(
         &mut self,
         descriptor_set_allocator: &Arc<StandardDescriptorSetAllocator>,
@@ -204,10 +245,13 @@ impl Renderer {
         tracing::trace!("Command buffers recreated");
     }
 
-    pub fn render(
-        &mut self,
-        on_waiting_for_render: &mut dyn FnMut(u32),
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    /// Renders the scene.
+    ///
+    /// ## Panics
+    ///
+    /// This function panics if the renderer cannot render the scene, typically due to an error
+    /// during rendering on the GPU.
+    pub fn render(&mut self, on_waiting_for_render: &mut dyn FnMut(u32)) {
         let (view_index, future) = self.render_surface.acquire().unwrap();
 
         let render_future = future
@@ -224,7 +268,5 @@ impl Renderer {
         self.render_surface
             .present(render_future.boxed(), &self.queue)
             .unwrap();
-
-        Ok(())
     }
 }

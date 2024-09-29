@@ -1,5 +1,58 @@
+//! # Ray Tracing Core Engine
+//!
+//! This crate provides the core engine for ray tracing applications. It is designed to be used as a library in other applications.
+//!
+//! ## Features
+//!
+//! - **Ray Tracing**: Perform ray tracing.
+//! - **Vulkan**: Use Vulkan.
+//! - **Bounding Volume Hierarchies**: Use BVHs to speed up rendering.
+//! - **Camera Control**: Control the camera.
+//! - **Controller Support**: Use controllers.
+//! - **Model Loading**: Load models.
+//! - **Window Rendering**: Render to a window.
+//! - **Image Rendering**: Render to an image buffer.
+
+#![deny(unsafe_code)]
 #![warn(clippy::pedantic, clippy::nursery)]
-#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
+#![warn(
+    clippy::cognitive_complexity,
+    clippy::dbg_macro,
+    clippy::debug_assert_with_mut_call,
+    clippy::doc_link_with_quotes,
+    clippy::doc_markdown,
+    clippy::empty_line_after_outer_attr,
+    clippy::empty_structs_with_brackets,
+    clippy::float_cmp,
+    clippy::float_cmp_const,
+    clippy::float_equality_without_abs,
+    keyword_idents,
+    clippy::missing_const_for_fn,
+    missing_copy_implementations,
+    clippy::missing_docs_in_private_items,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::mod_module_files,
+    non_ascii_idents,
+    noop_method_call,
+    clippy::option_if_let_else,
+    clippy::print_stderr,
+    clippy::print_stdout,
+    clippy::semicolon_if_nothing_returned,
+    clippy::unseparated_literal_suffix,
+    clippy::shadow_unrelated,
+    clippy::similar_names,
+    clippy::suspicious_operation_groupings,
+    unused_crate_dependencies,
+    unused_extern_crates,
+    unused_import_braces,
+    clippy::unused_self,
+    clippy::use_debug,
+    clippy::used_underscore_binding,
+    clippy::useless_let_if_seq,
+    clippy::wildcard_dependencies,
+    clippy::wildcard_imports
+)]
 
 use std::sync::Arc;
 
@@ -24,22 +77,35 @@ use vulkano::{
     VulkanLibrary,
 };
 
+/// Handles the control of the ray tracing application.
 pub mod control;
+/// Handles the rendering of the ray tracing application.
 pub mod render; // TODO: Make private ?
+/// Handles the shaders of the ray tracing application.
 pub mod shader;
 
+/// Handles the buffers of the ray tracing application.
 mod buffer;
 
+/// Represents the context of the ray tracing application.
 struct Context {
+    /// The Vulkan device.
     device: Arc<Device>,
+    /// The compute queue.
     compute_queue: Arc<Queue>,
+    /// The transfer queue.
     transfer_queue: Arc<Queue>,
+    /// The memory allocator.
     memory_allocator: Arc<StandardMemoryAllocator>,
+    /// The descriptor set allocator.
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
+    /// The command buffer allocator.
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
 }
 
 impl Context {
+    #[must_use]
+    /// Creates a new context for the ray tracing application.
     pub fn new(
         config: &RayTracingAppConfig,
         event_loop: Option<&winit::event_loop::EventLoop<()>>,
@@ -130,6 +196,8 @@ impl Context {
         }
     }
 
+    #[must_use]
+    /// Creates a new Vulkan device.
     fn create_device(
         physical_device: Arc<PhysicalDevice>,
         device_extensions: &DeviceExtensions,
@@ -194,14 +262,25 @@ impl Context {
     }
 }
 
+/// The main ray tracing application.
 pub struct RayTracingApp {
+    /// The configuration of the ray tracing application.
     config: RayTracingAppConfig,
+    /// The renderer.
     renderer: Renderer,
+    /// The GPU buffers.
     buffers: Buffers,
+    /// The optional event loop.
     event_loop: Option<winit::event_loop::EventLoop<()>>,
 }
 
 impl RayTracingApp {
+    #[must_use]
+    /// Creates a new ray tracing application from the given configuration.
+    ///
+    /// ## Panics
+    ///
+    /// This function will panic if the application encounters any errors during initialization.
     pub fn new(config: RayTracingAppConfig) -> Self {
         let event_loop = match config.render_surface_type {
             RenderSurfaceType::Window(_) => Some(winit::event_loop::EventLoop::new()),
@@ -245,6 +324,7 @@ impl RayTracingApp {
     }
 
     #[must_use]
+    /// Initializes the GPU buffers.
     fn init_gpu_buffers(context: &Context) -> Buffers {
         let camera_uniform = {
             use crate::shader::source::{Camera, CameraBuffer};
@@ -287,10 +367,17 @@ impl RayTracingApp {
     }
 
     #[must_use]
+    /// Returns the buffers used in the shader.
     pub fn buffers(&self) -> Buffers {
         self.buffers.clone()
     }
 
+    /// Run the application.
+    ///
+    /// ## Panics
+    ///
+    /// This function will panic if the application encounters any errors during runtime.
+    /// Typically, this can happen if there is a concurrency issue or if the application is unable to render.
     pub fn run(self) {
         match self.config.render_surface_type {
             RenderSurfaceType::Window(_) => {
@@ -309,6 +396,8 @@ impl RayTracingApp {
 
                 let mut start = std::time::Instant::now();
 
+                // ## Panics
+                // This line cannot panic because the event loop is always `Some` for window rendering.
                 event_loop.unwrap().run(move |event, _, control_flow| {
                     for controller in &mut controllers {
                         controller.handle_event(&event);
@@ -346,7 +435,7 @@ impl RayTracingApp {
 
                             // tracing::trace!("FPS: {}", 1.0 / elapsed);
 
-                            renderer.render(&mut |_| {}).unwrap();
+                            renderer.render(&mut |_| {});
                         }
                         _ => {}
                     }
@@ -360,16 +449,23 @@ impl RayTracingApp {
     }
 }
 
+/// The configuration of the ray tracing application.
 pub struct RayTracingAppConfig {
+    /// The type of render surface to use.
     pub render_surface_type: RenderSurfaceType,
+    /// The camera to use.
     pub camera: Box<dyn control::camera::Camera>,
+    /// The controllers to use.
     pub controllers: Vec<Box<dyn control::controller::Controller>>,
 }
 
 #[non_exhaustive]
 #[derive(Clone, Debug)]
+/// The type of render surface to use.
 pub enum RenderSurfaceType {
+    /// A window.
     Window(WindowDescriptor),
     #[cfg(feature = "image")]
+    /// An image.
     Image(ImageDescriptor),
 }

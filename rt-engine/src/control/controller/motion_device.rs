@@ -22,6 +22,7 @@ impl super::Controller for MotionDevice {
         }
     }
 
+    #[must_use]
     fn fetch_input(&mut self) -> Vec<Input> {
         let yaw = core::mem::take(&mut self.0);
         let pitch = core::mem::take(&mut self.1);

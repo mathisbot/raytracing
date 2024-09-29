@@ -8,16 +8,30 @@ use vulkano::{
 };
 use winit::{dpi::LogicalSize, window::CursorGrabMode};
 
+#[derive(Clone, Debug)]
+/// Represents a window.
 pub struct Window {
+    /// Inner `winit` window.
     window: Arc<winit::window::Window>,
+    /// The swapchain of the window.
     swapchain: Arc<Swapchain>,
-    final_views: Vec<Arc<ImageView>>,
+    /// The final views of the swapchain.
+    image_views: Vec<Arc<ImageView>>,
+    /// Whether the swapchain needs to be recreated.
     recreate_swapchain: bool,
+    /// The index of the image to be rendered.
     image_index: u32,
+    /// The present mode of the window.
     present_mode: PresentMode,
 }
 
 impl Window {
+    #[must_use]
+    /// Creates a new window.
+    ///
+    /// ## Panics
+    ///
+    /// The function will panic if anything goes wrong during window creation.
     pub fn new(
         event_loop: &winit::event_loop::EventLoop<()>,
         device: &Arc<Device>,
@@ -128,10 +142,12 @@ impl Window {
             image_index: 0,
             present_mode: window_descriptor.present_mode,
             swapchain,
-            final_views,
+            image_views: final_views,
         }
     }
 
+    #[must_use]
+    /// Creates a new swapchain.
     fn create_swapchain(
         device: Arc<Device>,
         window: &Arc<winit::window::Window>,
@@ -163,6 +179,8 @@ impl Window {
         {
             window_descriptor.present_mode
         } else {
+            /// This present mode is guaranteed to be supported,
+            /// so we can safely fall back to it.
             const FALLBACK_PRESENT_MODE: PresentMode = PresentMode::Fifo;
             tracing::warn!(
                 "request present mode {:?} not supported, falling back to {:?}",
@@ -194,6 +212,8 @@ impl Window {
         (swapchain, images_views)
     }
 
+    #[must_use]
+    /// Returns the best video mode of the given monitor.
     fn get_best_videomode(monitor: &winit::monitor::MonitorHandle) -> winit::monitor::VideoMode {
         monitor
             .video_modes()
@@ -207,11 +227,7 @@ impl Window {
             .unwrap()
     }
 
-    #[must_use]
-    pub fn window(&self) -> Arc<winit::window::Window> {
-        self.window.clone()
-    }
-
+    /// Recreates the swapchain and its views.
     fn recreate_swapchain_and_views(&mut self) {
         let [desired_width, desired_height]: [u32; 2] = self.window.inner_size().into();
 
@@ -233,26 +249,39 @@ impl Window {
             .into_iter()
             .map(|image| ImageView::new_default(image).unwrap())
             .collect::<Vec<_>>();
-        self.final_views = new_images;
+        self.image_views = new_images;
         #[cfg(target_os = "ios")]
         unsafe {
             self.surface.update_ios_sublayer_on_resize();
         }
 
         self.recreate_swapchain = false;
+
+        // TODO: Recreate command buffers
+        todo!("recreate command buffers");
     }
 }
 
 impl super::RenderSurface for Window {
+    #[must_use]
+    #[inline]
     fn size(&self) -> (u32, u32) {
         let size = self.window.inner_size();
         (size.width, size.height)
     }
 
+    #[must_use]
+    #[inline]
     fn views(&self) -> &[Arc<vulkano::image::view::ImageView>] {
-        &self.final_views
+        &self.image_views
     }
 
+    #[must_use = "The function returns a future that must be awaited"]
+    /// Acquires the next image to be rendered.
+    ///
+    /// ## Errors
+    ///
+    /// The function will return a non-fatal error if the swapchain couldn't be acquired.
     fn acquire(&mut self) -> Result<(u32, Box<dyn vulkano::sync::GpuFuture>), super::AcquireError> {
         if self.recreate_swapchain {
             self.recreate_swapchain_and_views();
@@ -277,6 +306,11 @@ impl super::RenderSurface for Window {
         Ok((image_index, acquire_future.boxed()))
     }
 
+    /// Presents the rendered image to the swapchain.
+    ///
+    /// ## Errors
+    ///
+    /// The function will return a non-fatal error if the swapchain couldn't be presented.
     fn present(
         &mut self,
         render_future: Box<dyn vulkano::sync::GpuFuture>,
@@ -313,6 +347,7 @@ impl super::RenderSurface for Window {
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Represents the mode of the window.
 pub enum Mode {
     Windowed,
     BorderlessFullscreen,
@@ -321,6 +356,7 @@ pub enum Mode {
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
+/// Represents a window descriptor.
 pub struct WindowDescriptor {
     pub width: u32,
     pub height: u32,
@@ -352,9 +388,15 @@ impl Default for WindowDescriptor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Represents the present mode of the window.
 pub enum PresentMode {
+    /// The image is presented immediately.
     Immediate,
+    /// Images get queued and the first one is presented.
     Mailbox,
+    /// Two imaages are queued and the first one is presented.
+    ///
+    /// This present mode is the only one to be guaranteed to be supported.
     Fifo,
 }
 
@@ -370,10 +412,15 @@ impl From<PresentMode> for vulkano::swapchain::PresentMode {
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, Copy)]
+/// Represents the constraints for resizing a window.
 pub struct ResizeConstraints {
+    /// The minimum width of the window.
     pub min_width: u32,
+    /// The minimum height of the window.
     pub min_height: u32,
+    /// The maximum width of the window.
     pub max_width: u32,
+    /// The maximum height of the window.
     pub max_height: u32,
 }
 
@@ -390,6 +437,7 @@ impl Default for ResizeConstraints {
 
 impl ResizeConstraints {
     #[must_use]
+    /// Checks the constraints and returns a new `ResizeConstraints` with valid values.
     pub fn check_constraints(&self) -> Self {
         let Self {
             mut min_width,

@@ -8,19 +8,32 @@ use vulkano::{
     sync::GpuFuture,
 };
 
+/// The module containing the BVH construction implementation.
 mod bvh;
+/// The module containing the model loading implementation.
 mod load;
 
 #[allow(clippy::module_name_repetitions)]
+/// Represents a loaded scene with models.
 pub struct LoadedModels {
+    /// The buffer containing the triangles of the models.
     pub triangles_buffer: Subbuffer<crate::shader::TrianglesBuffer>,
+    /// The buffer containing the materials of the models.
     pub materials_buffer: Subbuffer<crate::shader::Materials>,
+    /// The buffer containing the models.
     pub models_buffer: Subbuffer<crate::shader::ModelsBuffer>,
+    /// The buffer containing the BVHs of the models.
     pub bvhs_buffer: Subbuffer<crate::shader::BvhBuffer>,
 }
 
 impl LoadedModels {
     #[must_use]
+    /// Load the models from the given paths and positions.
+    ///
+    /// ## Panics
+    ///
+    /// This function will panic if one of the models cannot be loaded,
+    /// or if the given positions and paths do not have the same length.
     pub fn load(
         memory_allocator: &Arc<StandardMemoryAllocator>,
         command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
@@ -99,11 +112,9 @@ impl LoadedModels {
         let (models_buffer, models_future) = {
             use crate::shader::ModelsBuffer;
             let data = &models;
-            let staging_buffer = crate::buffer::new_staging::<ModelsBuffer>(
-                memory_allocator,
-                data.len() as u64,
-            )
-            .unwrap();
+            let staging_buffer =
+                crate::buffer::new_staging::<ModelsBuffer>(memory_allocator, data.len() as u64)
+                    .unwrap();
             staging_buffer.write().unwrap().models.copy_from_slice(data);
             crate::buffer::send_staging_to_device(
                 memory_allocator,

@@ -42,7 +42,6 @@ Because of the BVH-based collision detection, performances can drop depending on
 ## To-Do
 
 - Customizable buffers
-- Make clippy happy
 - Textures
 - Optimization
 

@@ -1,6 +1,7 @@
 use super::super::Input;
 
 #[derive(Copy, Clone, Debug, Default)]
+/// Represents the state of a keyboard.
 pub struct Keyboard(u8);
 
 impl super::Controller for Keyboard {
@@ -37,6 +38,7 @@ impl super::Controller for Keyboard {
         }
     }
 
+    #[must_use]
     fn fetch_input(&mut self) -> Vec<Input> {
         let mut inputs = Vec::new();
 

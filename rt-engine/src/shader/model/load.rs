@@ -2,6 +2,12 @@ use crate::shader::source::{Bvh, Model, Triangle};
 use vulkano::padded::Padded;
 
 impl Model {
+    #[must_use]
+    /// Load a model from the given `.obj` source file
+    ///
+    /// ## Panics
+    ///
+    /// This function panics if the model cannot be loaded, typically due to an invalid `.obj` file.
     pub fn load(
         triangles: &mut Vec<Padded<Triangle, 8>>,
         bvhs: &mut Vec<Padded<Bvh, 4>>,
