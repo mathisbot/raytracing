@@ -16,20 +16,20 @@ Ray tracing engine built in Rust using Vulkano.
 For the time being, it is not possible to configure the engine other than by modifying the source code.
 
 Several variables are of interest:
-- `max_depth` in `shaders/compute.comp`: BVH max depth
-- `nb_samples` in `shaders/compute.comp`: Samples per pixels
-- `max_bounce_count` in `shaders/compute.comp`: Maximum number of bounces for a single ray
+- `max_depth` in `shader/ray_trace.comp`: BVH max depth
+- `nb_samples` in `shader/ray_trace.comp`: Samples per pixels
+- `max_bounce_count` in `shader/ray_trace.comp`: Maximum number of bounces for a single ray
 - Model path in `lib.rs`
-- Materials in `models.rs`
+- Materials in `shader/models.rs`
 
-Keep in mind that for obvious reasons, I didn't include the `.obj` files required to load models.
+Keep in mind that for obvious reasons, I didn't include the `.obj` files of the models.
 You will have to find suitable models and modify `lib.rs` to load include their paths.
 
-To run the engine, use `cargo r -r`.
+To run the engine, use `cargo run --release`.
 
 ## Performances
 
-I managed to run a smooth 140 fps at minimum with 10 rays per pixel and 5 max bounce in the scene shown in the screenshots, with an AMD Radeon RX 7900 XTX.
+I managed to run a smooth 120 fps at minimum with 10 rays per pixel and 5 max bounce in the scene shown in the screenshots (1280x720), with an AMD Radeon RX 7900 XTX.
 
 Because of the BVH-based collision detection, performances can drop depending on how big is the model on your screen.
 
@@ -41,12 +41,10 @@ Because of the BVH-based collision detection, performances can drop depending on
 
 ## To-Do
 
+- Customizable buffers
+- Make clippy happy
 - Textures
-- Optimization / Refactoring
-
-## Does it run Doom ?
-
-No. Not yet.
+- Optimization
 
 ## Contributing
 

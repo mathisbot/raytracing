@@ -1,4 +1,4 @@
-use crate::shaders::{Bvh, Triangle};
+use crate::shader::source::{Bvh, Triangle};
 use vulkano::padded::Padded;
 
 impl Bvh {

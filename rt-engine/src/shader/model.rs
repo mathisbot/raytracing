@@ -1,25 +1,33 @@
+use std::sync::Arc;
+
 use vulkano::{
     buffer::{BufferUsage, Subbuffer},
+    command_buffer::allocator::StandardCommandBufferAllocator,
+    device::Queue,
+    memory::allocator::StandardMemoryAllocator,
     sync::GpuFuture,
 };
-
-use crate::init::context::VulkanoContext;
 
 mod bvh;
 mod load;
 
 #[allow(clippy::module_name_repetitions)]
 pub struct LoadedModels {
-    pub triangles_buffer: Subbuffer<crate::shaders::TrianglesBuffer>,
-    pub materials_buffer: Subbuffer<crate::shaders::Materials>,
-    pub models_buffer: Subbuffer<crate::shaders::ModelsBuffer>,
-    pub bvhs_buffer: Subbuffer<crate::shaders::BvhBuffer>,
-    pub future: Box<dyn vulkano::sync::GpuFuture>,
+    pub triangles_buffer: Subbuffer<crate::shader::TrianglesBuffer>,
+    pub materials_buffer: Subbuffer<crate::shader::Materials>,
+    pub models_buffer: Subbuffer<crate::shader::ModelsBuffer>,
+    pub bvhs_buffer: Subbuffer<crate::shader::BvhBuffer>,
 }
 
 impl LoadedModels {
     #[must_use]
-    pub fn load(context: &VulkanoContext, model_paths: &[String], positions: &[[f32; 3]]) -> Self {
+    pub fn load(
+        memory_allocator: &Arc<StandardMemoryAllocator>,
+        command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
+        queue: &Arc<Queue>,
+        model_paths: &[String],
+        positions: &[[f32; 3]],
+    ) -> Self {
         assert_eq!(
             model_paths.len(),
             positions.len(),
@@ -30,15 +38,19 @@ impl LoadedModels {
         let mut bvhs = Vec::new();
         let mut models = Vec::with_capacity(model_paths.len());
         for (model_path, model_position) in model_paths.iter().zip(positions) {
-            let model =
-                crate::shaders::Model::load(&mut triangles, &mut bvhs, model_path, model_position);
+            let model = crate::shader::source::Model::load(
+                &mut triangles,
+                &mut bvhs,
+                model_path,
+                model_position,
+            );
             models.push(model);
         }
 
         let (triangles_buffer, triangles_future) = {
-            use crate::shaders::TrianglesBuffer;
-            let staging_buffer = crate::buffers::new_staging_buffer::<TrianglesBuffer>(
-                context,
+            use crate::shader::TrianglesBuffer;
+            let staging_buffer = crate::buffer::new_staging::<TrianglesBuffer>(
+                memory_allocator,
                 triangles.len() as u64,
             )
             .unwrap();
@@ -47,8 +59,10 @@ impl LoadedModels {
                 .unwrap()
                 .triangles
                 .copy_from_slice(&triangles);
-            crate::buffers::send_staging_to_device(
-                context,
+            crate::buffer::send_staging_to_device(
+                memory_allocator,
+                command_buffer_allocator,
+                queue,
                 triangles.len() as u64,
                 staging_buffer,
                 BufferUsage::STORAGE_BUFFER,
@@ -56,7 +70,7 @@ impl LoadedModels {
             .unwrap()
         };
         let (materials_buffer, material_future) = {
-            use crate::shaders::{Material, Materials};
+            use crate::shader::source::{Material, Materials};
             let data = [Material {
                 color: [0.8, 0.6, 0.6],
                 albedo: 1.0,
@@ -65,15 +79,17 @@ impl LoadedModels {
             }
             .into()];
             let staging_buffer =
-                crate::buffers::new_staging_buffer::<Materials>(context, data.len() as u64)
+                crate::buffer::new_staging::<Materials>(memory_allocator, data.len() as u64)
                     .unwrap();
             staging_buffer
                 .write()
                 .unwrap()
                 .materials
                 .copy_from_slice(&data);
-            crate::buffers::send_staging_to_device(
-                context,
+            crate::buffer::send_staging_to_device(
+                memory_allocator,
+                command_buffer_allocator,
+                queue,
                 data.len() as u64,
                 staging_buffer,
                 BufferUsage::STORAGE_BUFFER,
@@ -81,14 +97,18 @@ impl LoadedModels {
             .unwrap()
         };
         let (models_buffer, models_future) = {
-            use crate::shaders::ModelsBuffer;
+            use crate::shader::ModelsBuffer;
             let data = &models;
-            let staging_buffer =
-                crate::buffers::new_staging_buffer::<ModelsBuffer>(context, data.len() as u64)
-                    .unwrap();
+            let staging_buffer = crate::buffer::new_staging::<ModelsBuffer>(
+                memory_allocator,
+                data.len() as u64,
+            )
+            .unwrap();
             staging_buffer.write().unwrap().models.copy_from_slice(data);
-            crate::buffers::send_staging_to_device(
-                context,
+            crate::buffer::send_staging_to_device(
+                memory_allocator,
+                command_buffer_allocator,
+                queue,
                 data.len() as u64,
                 staging_buffer,
                 BufferUsage::STORAGE_BUFFER,
@@ -96,13 +116,15 @@ impl LoadedModels {
             .unwrap()
         };
         let (bvhs_buffer, bvh_future) = {
-            use crate::shaders::BvhBuffer;
+            use crate::shader::BvhBuffer;
             let staging_buffer =
-                crate::buffers::new_staging_buffer::<BvhBuffer>(context, bvhs.len() as u64)
+                crate::buffer::new_staging::<BvhBuffer>(memory_allocator, bvhs.len() as u64)
                     .unwrap();
             staging_buffer.write().unwrap().bvhs.copy_from_slice(&bvhs);
-            crate::buffers::send_staging_to_device(
-                context,
+            crate::buffer::send_staging_to_device(
+                memory_allocator,
+                command_buffer_allocator,
+                queue,
                 bvhs.len() as u64,
                 staging_buffer,
                 BufferUsage::STORAGE_BUFFER,
@@ -110,17 +132,19 @@ impl LoadedModels {
             .unwrap()
         };
 
-        let future = triangles_future
+        triangles_future
             .join(material_future)
             .join(models_future)
-            .join(bvh_future);
+            .join(bvh_future)
+            .then_signal_fence()
+            .wait(None)
+            .unwrap();
 
         Self {
             triangles_buffer,
             materials_buffer,
             models_buffer,
             bvhs_buffer,
-            future: Box::new(future),
         }
     }
 }

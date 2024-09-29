@@ -1,25 +1,29 @@
-use crate::init::context::VulkanoContext;
+use std::sync::Arc;
+
 use vulkano::{
     buffer::{
         AllocateBufferError, Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer,
     },
-    command_buffer::{CommandBufferExecFuture, CopyBufferInfo},
-    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter},
+    command_buffer::{
+        allocator::StandardCommandBufferAllocator, CommandBufferExecFuture, CopyBufferInfo,
+    },
+    device::Queue,
+    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     sync::{self, future::FenceSignalFuture, GpuFuture},
     Validated,
 };
 
 pub type SendBufferFuture = FenceSignalFuture<CommandBufferExecFuture<sync::future::NowFuture>>;
 
-pub fn new_staging_buffer<T>(
-    context: &VulkanoContext,
+pub fn new_staging<T>(
+    memory_allocator: &Arc<StandardMemoryAllocator>,
     data_len: u64,
 ) -> Result<Subbuffer<T>, Validated<AllocateBufferError>>
 where
     T: BufferContents + ?Sized,
 {
     Buffer::new_unsized(
-        context.memory_allocator().clone(),
+        memory_allocator.clone(),
         BufferCreateInfo {
             usage: BufferUsage::TRANSFER_SRC,
             ..Default::default()
@@ -34,7 +38,9 @@ where
 }
 
 pub fn send_staging_to_device<T>(
-    context: &VulkanoContext,
+    memory_allocator: &Arc<StandardMemoryAllocator>,
+    command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
+    queue: &Arc<Queue>,
     data_len: u64,
     staging_buffer: Subbuffer<T>,
     usage: BufferUsage,
@@ -43,7 +49,7 @@ where
     T: BufferContents + ?Sized,
 {
     let destination_buffer = Buffer::new_unsized(
-        context.memory_allocator().clone(),
+        memory_allocator.clone(),
         BufferCreateInfo {
             usage: usage | BufferUsage::TRANSFER_DST,
             ..Default::default()
@@ -56,8 +62,8 @@ where
     )?;
 
     let mut builder = vulkano::command_buffer::AutoCommandBufferBuilder::primary(
-        &context.command_buffer_allocator().clone(),
-        context.transfer_queue().queue_family_index(),
+        command_buffer_allocator,
+        queue.queue_family_index(),
         vulkano::command_buffer::CommandBufferUsage::OneTimeSubmit,
     )
     .unwrap();
@@ -67,8 +73,8 @@ where
     ))?;
     let command_buffer = builder.build().unwrap();
 
-    let future = sync::now(context.device().clone())
-        .then_execute(context.transfer_queue().clone(), command_buffer)
+    let future = sync::now(queue.device().clone())
+        .then_execute(queue.clone(), command_buffer)
         .unwrap()
         .then_signal_fence_and_flush()
         .unwrap();
@@ -77,13 +83,13 @@ where
 }
 
 pub fn new_uniform<T>(
-    context: &VulkanoContext,
+    memory_allocator: &Arc<StandardMemoryAllocator>,
 ) -> Result<Subbuffer<T>, Validated<AllocateBufferError>>
 where
     T: BufferContents,
 {
     Buffer::new_sized(
-        context.memory_allocator().clone(),
+        memory_allocator.clone(),
         BufferCreateInfo {
             usage: BufferUsage::UNIFORM_BUFFER,
             ..Default::default()
