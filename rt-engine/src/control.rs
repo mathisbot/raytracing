@@ -1,3 +1,7 @@
+//! This module contains the control system of the engine.
+//!
+//! It is used to move the camera around and interact with the scene.
+
 pub mod camera;
 pub mod controller;
 

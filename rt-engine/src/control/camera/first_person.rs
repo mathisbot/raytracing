@@ -31,6 +31,37 @@ pub struct FirstPerson {
 }
 
 impl FirstPerson {
+    #[must_use]
+    pub fn from_position_yaw_pitch(position: [f32; 3], yaw: f32, pitch: f32) -> Self {
+        let direction = [
+            yaw.to_radians().cos() * pitch.to_radians().cos(),
+            pitch.to_radians().sin(),
+            yaw.to_radians().sin() * pitch.to_radians().cos(),
+        ];
+
+        let right = [-yaw.to_radians().sin(), 0.0, yaw.to_radians().cos()];
+
+        let mut up = [
+            right[1].mul_add(direction[2], -(right[2] * direction[1])),
+            right[2].mul_add(direction[0], -(right[0] * direction[2])),
+            right[0].mul_add(direction[1], -(right[1] * direction[0])),
+        ];
+
+        // normalize(&mut self.direction); // This is not necessary, as the direction is normalized by the pitch and yaw.
+        // normalize(&mut self.right); // This is not necessary, as the right vector is normalized by the yaw.
+        normalize(&mut up);
+
+        Self {
+            position,
+            direction,
+            up,
+            right,
+            yaw,
+            pitch,
+            ..Default::default()
+        }
+    }
+
     #[inline]
     /// Sets the sensitivity of the camera.
     pub fn set_sentivity(&mut self, sensitivity: f32) {

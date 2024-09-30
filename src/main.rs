@@ -14,7 +14,13 @@ fn main() {
         })
         .init();
 
-    let first_person_camera = rt_engine::control::camera::first_person::FirstPerson::default();
+    let first_person_camera = Box::new(
+        rt_engine::control::camera::first_person::FirstPerson::from_position_yaw_pitch(
+            [5.0, 0.0, 3.0],
+            240.0,
+            0.0,
+        ),
+    );
 
     let keyboard = rt_engine::control::controller::keyboard::Keyboard::default();
     let mouse = rt_engine::control::controller::mouse::Mouse::default();
@@ -34,7 +40,7 @@ fn main() {
                 resize_constraints: rt_engine::render::window::ResizeConstraints::default(),
             },
         ),
-        camera: Box::new(first_person_camera),
+        camera: first_person_camera,
         controllers: vec![Box::new(keyboard), Box::new(mouse)],
     };
 
@@ -46,7 +52,7 @@ fn main() {
     //             height: 2160,
     //         },
     //     ),
-    //     camera: Box::new(first_person_camera),
+    //     camera: first_person_camera,
     //     controllers: vec![],
     // };
 

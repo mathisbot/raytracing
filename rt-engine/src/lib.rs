@@ -4,14 +4,14 @@
 //!
 //! ## Features
 //!
-//! - **Ray Tracing**: Perform ray tracing.
-//! - **Vulkan**: Use Vulkan.
-//! - **Bounding Volume Hierarchies**: Use BVHs to speed up rendering.
-//! - **Camera Control**: Control the camera.
-//! - **Controller Support**: Use controllers.
-//! - **Model Loading**: Load models.
-//! - **Window Rendering**: Render to a window.
-//! - **Image Rendering**: Render to an image buffer.
+//! - Ray Tracing
+//! - Vulkan
+//! - Bounding Volume Hierarchies
+//! - Camera handling
+//! - Wide controller devices support
+//! - Model Loading
+//! - Window Rendering
+//! - Image Rendering
 
 #![deny(unsafe_code)]
 #![warn(clippy::pedantic, clippy::nursery)]
@@ -303,7 +303,7 @@ impl RayTracingApp {
         };
 
         // TODO: Let user specify buffer content
-        let buffers = Self::init_gpu_buffers(&context);
+        let buffers = Self::init_gpu_buffers(&config, &context);
 
         let renderer = Renderer::new(
             &context.device,
@@ -326,14 +326,14 @@ impl RayTracingApp {
 
     #[must_use]
     /// Initializes the GPU buffers.
-    fn init_gpu_buffers(context: &Context) -> Buffers {
+    fn init_gpu_buffers(config: &RayTracingAppConfig, context: &Context) -> Buffers {
         let camera_uniform = {
             use crate::shader::source::{Camera, CameraBuffer};
             let data = Camera {
-                position: [0.0, 0.0, 0.0].into(),
-                view: [0.0, 0.0, -1.0].into(),
-                up: [0.0, 1.0, 0.0].into(),
-                right: [1.0, 0.0, 0.0],
+                position: config.camera.position().into(),
+                view: config.camera.direction().into(),
+                up: config.camera.up().into(),
+                right: config.camera.right(),
             };
             let buffer =
                 crate::buffer::new_uniform::<CameraBuffer>(&context.memory_allocator).unwrap();

@@ -16,16 +16,21 @@ use vulkano::{
 /// The future type for sending a buffer to the device.
 pub type SendBufferFuture = FenceSignalFuture<CommandBufferExecFuture<sync::future::NowFuture>>;
 
-#[must_use = "The function returns a buffer that must be used"]
-/// Creates a new staging buffer.
-pub fn new_staging<T>(
+#[must_use = "The function returns a future that must be awaited and a buffer that must be used"]
+/// Sends the given data to the device,
+/// returning the destination buffer and the send future.
+pub fn send_to_device<T>(
     memory_allocator: &Arc<StandardMemoryAllocator>,
+    command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
+    queue: &Arc<Queue>,
     data_len: u64,
-) -> Result<Subbuffer<T>, Validated<AllocateBufferError>>
+    usage: BufferUsage,
+    fill_buffer: impl FnOnce(&mut T),
+) -> Result<(Subbuffer<T>, SendBufferFuture), Validated<AllocateBufferError>>
 where
     T: BufferContents + ?Sized,
 {
-    Buffer::new_unsized(
+    let staging_buffer = Buffer::new_unsized(
         memory_allocator.clone(),
         BufferCreateInfo {
             usage: BufferUsage::TRANSFER_SRC,
@@ -37,23 +42,10 @@ where
             ..Default::default()
         },
         data_len,
-    )
-}
+    )?;
 
-#[must_use = "The function returns a future that must be awaited and a buffer that must be used"]
-/// Sends the staging buffer to the device,
-/// returning the destination buffer and the send future.
-pub fn send_staging_to_device<T>(
-    memory_allocator: &Arc<StandardMemoryAllocator>,
-    command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
-    queue: &Arc<Queue>,
-    data_len: u64,
-    staging_buffer: Subbuffer<T>,
-    usage: BufferUsage,
-) -> Result<(Subbuffer<T>, SendBufferFuture), Validated<AllocateBufferError>>
-where
-    T: BufferContents + ?Sized,
-{
+    fill_buffer(&mut staging_buffer.write().unwrap());
+
     let destination_buffer = Buffer::new_unsized(
         memory_allocator.clone(),
         BufferCreateInfo {

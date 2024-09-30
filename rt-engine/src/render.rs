@@ -1,3 +1,7 @@
+//! This module, aside from defining the `Renderer` struct, also defines the `RenderSurface` trait.
+//!
+//! The latter is used to abstract the rendering surface, which can be any surface suitable for rendering.
+
 use std::sync::Arc;
 use vulkano::{
     buffer::Subbuffer,
@@ -30,6 +34,7 @@ pub type RenderCommandBuffer =
 
 #[allow(clippy::module_name_repetitions)]
 // TODO: enum render surface "one time" and "swapchain" ?
+// Or add init function to render surface?
 /// Represents a render surface.
 pub trait RenderSurface {
     /// Returns the size of the render surface.

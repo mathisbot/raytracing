@@ -49,96 +49,74 @@ impl LoadedModels {
 
         let mut triangles = Vec::new();
         let mut bvhs = Vec::new();
-        let mut models = Vec::with_capacity(model_paths.len());
-        for (model_path, model_position) in model_paths.iter().zip(positions) {
-            let model = crate::shader::source::Model::load(
-                &mut triangles,
-                &mut bvhs,
-                model_path,
-                model_position,
-            );
-            models.push(model);
-        }
+        let models = model_paths
+            .iter()
+            .zip(positions)
+            .map(|(path, position)| {
+                crate::shader::source::Model::load(&mut triangles, &mut bvhs, path, position)
+            })
+            .collect::<Vec<_>>();
 
         let (triangles_buffer, triangles_future) = {
             use crate::shader::TrianglesBuffer;
-            let staging_buffer = crate::buffer::new_staging::<TrianglesBuffer>(
-                memory_allocator,
-                triangles.len() as u64,
-            )
-            .unwrap();
-            staging_buffer
-                .write()
-                .unwrap()
-                .triangles
-                .copy_from_slice(&triangles);
-            crate::buffer::send_staging_to_device(
+
+            crate::buffer::send_to_device(
                 memory_allocator,
                 command_buffer_allocator,
                 queue,
                 triangles.len() as u64,
-                staging_buffer,
                 BufferUsage::STORAGE_BUFFER,
+                |data: &mut TrianglesBuffer| data.triangles.copy_from_slice(&triangles),
             )
             .unwrap()
         };
+
         let (materials_buffer, material_future) = {
             use crate::shader::source::{Material, Materials};
-            let data = [Material {
+
+            let materials = [Material {
                 color: [0.8, 0.6, 0.6],
                 albedo: 1.0,
                 smoothness: 0.98,
                 emission_strength: 0.0,
             }
             .into()];
-            let staging_buffer =
-                crate::buffer::new_staging::<Materials>(memory_allocator, data.len() as u64)
-                    .unwrap();
-            staging_buffer
-                .write()
-                .unwrap()
-                .materials
-                .copy_from_slice(&data);
-            crate::buffer::send_staging_to_device(
+
+            crate::buffer::send_to_device(
                 memory_allocator,
                 command_buffer_allocator,
                 queue,
-                data.len() as u64,
-                staging_buffer,
+                materials.len() as u64,
                 BufferUsage::STORAGE_BUFFER,
+                |data: &mut Materials| data.materials.copy_from_slice(&materials),
             )
             .unwrap()
         };
+
         let (models_buffer, models_future) = {
             use crate::shader::ModelsBuffer;
-            let data = &models;
-            let staging_buffer =
-                crate::buffer::new_staging::<ModelsBuffer>(memory_allocator, data.len() as u64)
-                    .unwrap();
-            staging_buffer.write().unwrap().models.copy_from_slice(data);
-            crate::buffer::send_staging_to_device(
+
+            crate::buffer::send_to_device(
                 memory_allocator,
                 command_buffer_allocator,
                 queue,
-                data.len() as u64,
-                staging_buffer,
+                models.len() as u64,
                 BufferUsage::STORAGE_BUFFER,
+                |data: &mut ModelsBuffer| data.models.copy_from_slice(&models),
             )
             .unwrap()
         };
+
         let (bvhs_buffer, bvh_future) = {
             use crate::shader::BvhBuffer;
-            let staging_buffer =
-                crate::buffer::new_staging::<BvhBuffer>(memory_allocator, bvhs.len() as u64)
-                    .unwrap();
-            staging_buffer.write().unwrap().bvhs.copy_from_slice(&bvhs);
-            crate::buffer::send_staging_to_device(
+
+            crate::buffer::send_to_device(
                 memory_allocator,
                 command_buffer_allocator,
                 queue,
                 bvhs.len() as u64,
-                staging_buffer,
                 BufferUsage::STORAGE_BUFFER,
+                |data: &mut BvhBuffer| data.bvhs.copy_from_slice(&bvhs),
             )
             .unwrap()
         };

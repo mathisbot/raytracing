@@ -30,6 +30,8 @@ pub struct Image {
     compute_queue: Arc<Queue>,
     /// Command buffer used to copy the image to the buffer
     command_buffer: Arc<PrimaryAutoCommandBuffer<Arc<StandardCommandBufferAllocator>>>,
+    /// Used to benchmark the rendering time.
+    start_time: std::time::Instant,
 }
 
 impl Image {
@@ -110,6 +112,7 @@ impl Image {
             inner_buffer,
             compute_queue,
             command_buffer,
+            start_time: std::time::Instant::now(),
         }
     }
 }
@@ -163,7 +166,12 @@ impl super::RenderSurface for Image {
 
                 png_writer.write_image_data(&reader).unwrap();
 
-                tracing::info!("Image succesfully rendered and saved to {:?}.", self.path);
+                let elapsed = self.start_time.elapsed();
+                tracing::info!(
+                    "Image succesfully rendered and saved to {:?} in {:?}.",
+                    self.path,
+                    elapsed
+                );
 
                 Ok(())
             }
