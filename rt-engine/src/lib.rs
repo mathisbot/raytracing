@@ -118,7 +118,6 @@ impl Context {
             RenderSurfaceType::Window(_) => Surface::required_extensions(event_loop.unwrap()),
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => vulkano::instance::InstanceExtensions::empty(),
-            // _ => todo!(),
         };
         assert!(
             library
@@ -135,7 +134,6 @@ impl Context {
             },
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => DeviceExtensions::empty(),
-            // _ => todo!(),
         };
 
         let instance = Instance::new(
@@ -286,7 +284,6 @@ impl RayTracingApp {
             RenderSurfaceType::Window(_) => Some(winit::event_loop::EventLoop::new()),
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => None,
-            // _ => todo!(),
         };
         let context = Context::new(&config, event_loop.as_ref());
 
@@ -297,8 +294,12 @@ impl RayTracingApp {
                 descriptor,
             )),
             #[cfg(feature = "image")]
-            RenderSurfaceType::Image(descriptor) => Box::new(Image::new(&descriptor)),
-            // _ => todo!(),
+            RenderSurfaceType::Image(descriptor) => Box::new(Image::new(
+                descriptor,
+                context.memory_allocator.clone(),
+                &context.command_buffer_allocator,
+                context.compute_queue.clone(),
+            )),
         };
 
         // TODO: Let user specify buffer content
@@ -443,8 +444,9 @@ impl RayTracingApp {
             }
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => {
-                self.render(&mut |_| {});
-            } // _ => todo!(),
+                let Self { mut renderer, .. } = self;
+                renderer.render(&mut |_| {});
+            }
         }
     }
 }

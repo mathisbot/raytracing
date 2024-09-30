@@ -14,9 +14,10 @@ fn main() {
         })
         .init();
 
-    let camera = rt_engine::control::camera::first_person::FirstPerson::default();
+    let first_person_camera = rt_engine::control::camera::first_person::FirstPerson::default();
+
     let keyboard = rt_engine::control::controller::keyboard::Keyboard::default();
-    let mouse = rt_engine::control::controller::motion_device::MotionDevice::default();
+    let mouse = rt_engine::control::controller::mouse::Mouse::default();
 
     let config = rt_engine::RayTracingAppConfig {
         render_surface_type: rt_engine::RenderSurfaceType::Window(
@@ -28,15 +29,26 @@ fn main() {
                 cursor_locked: true,
                 position: None,
                 resizable: false,
-                // FIXME: Exclusive fullscreen mode
                 mode: rt_engine::render::window::Mode::Windowed,
                 present_mode: rt_engine::render::window::PresentMode::Fifo,
                 resize_constraints: rt_engine::render::window::ResizeConstraints::default(),
             },
         ),
-        camera: Box::new(camera),
+        camera: Box::new(first_person_camera),
         controllers: vec![Box::new(keyboard), Box::new(mouse)],
     };
+
+    // let config = rt_engine::RayTracingAppConfig {
+    //     render_surface_type: rt_engine::RenderSurfaceType::Image(
+    //         rt_engine::render::image::ImageDescriptor {
+    //             path: "output.png".into(),
+    //             width: 3840,
+    //             height: 2160,
+    //         },
+    //     ),
+    //     camera: Box::new(first_person_camera),
+    //     controllers: vec![],
+    // };
 
     let app = RayTracingApp::new(config);
 

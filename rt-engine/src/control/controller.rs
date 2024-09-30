@@ -1,5 +1,6 @@
 pub mod keyboard;
 pub mod motion_device;
+pub mod mouse;
 
 /// Represents a controller.
 ///

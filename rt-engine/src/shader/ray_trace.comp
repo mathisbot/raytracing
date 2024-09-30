@@ -296,13 +296,13 @@ void main() {
     const vec2 dim = imageSize(img);
     const vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
     const float aspect_ratio = dim.x / dim.y;
-    const int nb_samples = 10;
+    const int nb_samples = 20;
 
     vec3 accumulated_color = vec3(0.0);
 
     // TODO: Only accumulate if hit ?
     for (int s = 0; s < nb_samples; s++) {
-        uint state = s*685743 + gl_GlobalInvocationID.x*2077 + gl_GlobalInvocationID.y;
+        uint state = s*685743 + gl_GlobalInvocationID.x*9841 + gl_GlobalInvocationID.y;
         // TODO: Don't jitter randomly but in a spherical grid (with more ray closer to the center)
         Ray jittered_ray = jittered_primary_ray(uv, aspect_ratio, state);
         accumulated_color += compute_color(jittered_ray, state);

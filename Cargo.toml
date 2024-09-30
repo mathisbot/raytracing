@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-rt-engine = { path = "rt-engine" }
+rt-engine = { path = "rt-engine", features = ["image"] }
 
 [workspace]
 members = ["rt-engine"]
