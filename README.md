@@ -27,6 +27,12 @@ You will have to find suitable models and modify `lib.rs` to load include their 
 
 To run the engine, use `cargo run --release`.
 
+Please note that you will need the Vulkan Runtime to use the application.
+The Runtime is very likely to be shipped with your graphics driver on Windows and Linux,
+but you might need to install it on macOS.
+It is also easier (but not mandatory) to have the Vulkan SDK installed when compiling the application,
+especially for shader compilation.
+
 ## Performances
 
 I managed to run a smooth 120 fps at minimum with 10 rays per pixel and 5 max bounce in the scene shown in the screenshots (1280x720), with an AMD Radeon RX 7900 XTX.

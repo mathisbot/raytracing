@@ -164,7 +164,7 @@ HitRecord ray_hit_bvh(in Ray ray, in uint bvh_index) {
     HitRecord hit_record;
     hit_record.t = infinity;
 
-    const uint max_depth = 30;
+    const uint max_depth = 25;
     uint bvh_stack[max_depth];
     uint stack_size = 0;
     bvh_stack[stack_size++] = bvh_index;
@@ -247,7 +247,7 @@ vec3 sky_color(vec3 direction) {
 }
 
 vec3 compute_color(in Ray ray, inout uint state) {
-    const int max_bounce_count = 5;
+    const int max_bounce_count = 6;
     vec3 incoming_light = vec3(0.0);
     vec3 color = vec3(1.0);
 
@@ -296,7 +296,7 @@ void main() {
     const vec2 dim = imageSize(img);
     const vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
     const float aspect_ratio = dim.x / dim.y;
-    const int nb_samples = 20;
+    const int nb_samples = 10;
 
     vec3 accumulated_color = vec3(0.0);
 

@@ -140,14 +140,14 @@ impl Context {
             library,
             InstanceCreateInfo {
                 #[cfg(target_os = "macos")]
-                flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
+                flags: vulkano::instance::InstanceCreateFlags::ENUMERATE_PORTABILITY,
                 application_version: vulkano::Version::major_minor(1, 0),
                 #[cfg(target_os = "macos")]
-                enabled_extensions: InstanceExtensions {
+                enabled_extensions: vulkano::instance::InstanceExtensions {
                     khr_portability_enumeration: true,
-                    ..InstanceExtensions::empty()
+                    ..Default::default()
                 }
-                .union(instance_extensions),
+                .union(&instance_extensions),
                 #[cfg(not(target_os = "macos"))]
                 enabled_extensions: instance_extensions,
                 ..Default::default()
