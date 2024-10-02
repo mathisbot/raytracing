@@ -45,32 +45,25 @@ impl Window {
                 winit::window::Fullscreen::Borderless(event_loop.primary_monitor()),
             )),
             Mode::Fullscreen => {
-                #[cfg(target_os = "macos")]
-                {
-                    winit_window_builder.with_fullscreen(Some(
-                        winit::window::Fullscreen::Borderless(event_loop.primary_monitor()),
-                    ))
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    winit_window_builder.with_fullscreen(Some(
-                        // FIXME: Exclusive fullscreen
-                        winit::window::Fullscreen::Exclusive({
-                            let video_mode = Self::get_best_videomode(
-                                &event_loop
-                                    .primary_monitor()
-                                    .expect("could not find primary monitor"),
-                            );
-                            tracing::debug!(
-                                "Best video mode: {}x{} @ {}Hz",
-                                video_mode.size().width,
-                                video_mode.size().height,
-                                video_mode.refresh_rate_millihertz() / 1000
-                            );
-                            video_mode
-                        }),
-                    ))
-                }
+                winit_window_builder.with_fullscreen(Some(if cfg!(target_os = "macos") {
+                    winit::window::Fullscreen::Borderless(event_loop.primary_monitor())
+                } else {
+                    // FIXME: Exclusive fullscreen
+                    winit::window::Fullscreen::Exclusive({
+                        let video_mode = Self::get_best_videomode(
+                            &event_loop
+                                .primary_monitor()
+                                .expect("could not find primary monitor"),
+                        );
+                        tracing::debug!(
+                            "Best video mode: {}x{} @ {}Hz",
+                            video_mode.size().width,
+                            video_mode.size().height,
+                            video_mode.refresh_rate_millihertz() / 1000
+                        );
+                        video_mode
+                    })
+                }))
             }
             Mode::Windowed => {
                 let WindowDescriptor {
@@ -120,12 +113,16 @@ impl Window {
         }
 
         if window_descriptor.cursor_locked {
-            match winit_window.set_cursor_grab(CursorGrabMode::Confined) {
+            match winit_window.set_cursor_grab(if cfg!(target_os = "macos") {
+                CursorGrabMode::Locked
+            } else {
+                CursorGrabMode::Confined
+            }) {
                 Ok(()) => (),
                 Err(winit::error::ExternalError::NotSupported(_)) => {
                     tracing::warn!("Cursor confinement is not supported on this platform");
                 }
-                Err(err) => panic!("{err:?}"),
+                Err(err) => tracing::error!("Error confining cursor: {err:?}"),
             }
         }
 

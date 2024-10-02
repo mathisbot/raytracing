@@ -22,8 +22,8 @@ fn main() {
         ),
     );
 
-    let keyboard = rt_engine::control::controller::keyboard::Keyboard::default();
-    let mouse = rt_engine::control::controller::mouse::Mouse::default();
+    let keyboard = Box::new(rt_engine::control::controller::keyboard::Keyboard::default());
+    let mouse = Box::new(rt_engine::control::controller::mouse::Mouse::default());
 
     let config = rt_engine::RayTracingAppConfig {
         render_surface_type: rt_engine::RenderSurfaceType::Window(
@@ -41,7 +41,14 @@ fn main() {
             },
         ),
         camera: first_person_camera,
-        controllers: vec![Box::new(keyboard), Box::new(mouse)],
+        controllers: vec![keyboard, mouse],
+        scene_descriptor: rt_engine::shader::SceneDescriptor {
+            model_paths: vec![
+                "assets/models/cottage/cottage_FREE.obj".to_string(),
+                "assets/models/gun/Pistol_02.obj".to_string(),
+            ],
+            positions: vec![[0.0, -3.0, -10.0], [0.0, 0.0, 0.0]],
+        },
     };
 
     // let config = rt_engine::RayTracingAppConfig {
@@ -54,9 +61,16 @@ fn main() {
     //     ),
     //     camera: first_person_camera,
     //     controllers: vec![],
+    //     scene_descriptor: rt_engine::shader::SceneDescriptor {
+    //         model_paths: vec![
+    //             "assets/models/cottage/cottage_FREE.obj".to_string(),
+    //             "assets/models/gun/Pistol_02.obj".to_string(),
+    //         ],
+    //         positions: vec![[0.0, -3.0, -10.0], [0.0, 0.0, 0.0]],
+    //     },
     // };
 
     let app = RayTracingApp::new(config);
 
-    app.run();
+    app.run(Box::new(|_view_index| {}));
 }

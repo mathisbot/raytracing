@@ -13,6 +13,7 @@ mod bvh;
 /// The module containing the model loading implementation.
 mod load;
 
+#[derive(Clone)]
 #[allow(clippy::module_name_repetitions)]
 /// Represents a loaded scene with models.
 pub struct LoadedModels {
@@ -38,9 +39,13 @@ impl LoadedModels {
         memory_allocator: &Arc<StandardMemoryAllocator>,
         command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
         queue: &Arc<Queue>,
-        model_paths: &[String],
-        positions: &[[f32; 3]],
+        scene_descriptor: &super::SceneDescriptor,
     ) -> Self {
+        let super::SceneDescriptor {
+            model_paths,
+            positions,
+        } = scene_descriptor;
+
         assert_eq!(
             model_paths.len(),
             positions.len(),

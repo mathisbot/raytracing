@@ -77,14 +77,15 @@ use vulkano::{
     VulkanLibrary,
 };
 
-/// Handles the control of the ray tracing application.
+/// Handles everything related to the camera.
 pub mod control;
-/// Handles the rendering of the ray tracing application.
-pub mod render; // TODO: Make private ?
-/// Handles the shaders of the ray tracing application.
+/// Handles rendering on a surface.
+pub mod render;
+/// Shader source code and implementations
+/// of the shader structs.
 pub mod shader;
 
-/// Handles the buffers of the ray tracing application.
+/// Utils to handle staging buffers.
 mod buffer;
 
 /// Represents the context of the ray tracing application.
@@ -302,7 +303,6 @@ impl RayTracingApp {
             )),
         };
 
-        // TODO: Let user specify buffer content
         let buffers = Self::init_gpu_buffers(&config, &context);
 
         let renderer = Renderer::new(
@@ -351,11 +351,7 @@ impl RayTracingApp {
             &context.memory_allocator,
             &context.command_buffer_allocator,
             &context.transfer_queue,
-            &[
-                "assets/models/cottage/cottage_FREE.obj".to_string(),
-                "assets/models/gun/Pistol_02.obj".to_string(),
-            ],
-            &[[0.0, -3.0, -10.0], [0.0, 0.0, 0.0]],
+            &config.scene_descriptor,
         );
 
         Buffers {
@@ -375,11 +371,15 @@ impl RayTracingApp {
 
     /// Run the application.
     ///
+    /// ## Note
+    ///
+    /// Use the argument `on_waiting_for_render` to update anything unrelated to rendering while waiting for the render to complete.
+    ///
     /// ## Panics
     ///
     /// This function will panic if the application encounters any errors during runtime.
     /// Typically, this can happen if there is a concurrency issue or if the application is unable to render.
-    pub fn run(self) {
+    pub fn run(self, mut on_waiting_for_render: Box<dyn FnMut(u32)>) {
         match self.config.render_surface_type {
             RenderSurfaceType::Window(_) => {
                 let Self {
@@ -410,12 +410,12 @@ impl RayTracingApp {
                         } => {
                             *control_flow = winit::event_loop::ControlFlow::Exit;
                         }
-                        // TODO: Resize
                         // winit::event::Event::WindowEvent {
-                        //     event: winit::event::WindowEvent::Resized(size),
+                        //     event: winit::event::WindowEvent::Resized(_size),
                         //     ..
                         // } => {
-                        //     self.resize(size);
+                        //     // TODO: Handle window resizing
+                        //     todo!("Handle window resizing");
                         // }
                         winit::event::Event::MainEventsCleared => {
                             let elapsed = start.elapsed().as_secs_f32();
@@ -436,7 +436,7 @@ impl RayTracingApp {
 
                             // tracing::trace!("FPS: {}", 1.0 / elapsed);
 
-                            renderer.render(&mut |_| {});
+                            renderer.render(&mut on_waiting_for_render);
                         }
                         _ => {}
                     }
@@ -445,7 +445,7 @@ impl RayTracingApp {
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => {
                 let Self { mut renderer, .. } = self;
-                renderer.render(&mut |_| {});
+                renderer.render(&mut on_waiting_for_render);
             }
         }
     }
@@ -459,10 +459,13 @@ pub struct RayTracingAppConfig {
     pub camera: Box<dyn control::camera::Camera>,
     /// The controllers to use.
     pub controllers: Vec<Box<dyn control::controller::Controller>>,
+    /// Scene data to render.
+    pub scene_descriptor: shader::SceneDescriptor,
 }
 
 #[non_exhaustive]
 #[derive(Clone, Debug)]
+// TODO: Remove and use only `RenderSurface` trait.
 /// The type of render surface to use.
 pub enum RenderSurfaceType {
     /// A window.

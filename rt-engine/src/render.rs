@@ -23,8 +23,10 @@ pub mod image;
 pub mod window;
 
 #[derive(Copy, Clone, Debug)]
+/// Represents an error that occurs when acquiring an image view.
 pub struct AcquireError;
 #[derive(Copy, Clone, Debug)]
+/// Represents an error that occurs when presenting an image.
 pub struct PresentError;
 
 #[allow(clippy::module_name_repetitions)]
@@ -33,9 +35,10 @@ pub type RenderCommandBuffer =
     Arc<vulkano::command_buffer::PrimaryAutoCommandBuffer<Arc<StandardCommandBufferAllocator>>>;
 
 #[allow(clippy::module_name_repetitions)]
-// TODO: enum render surface "one time" and "swapchain" ?
-// Or add init function to render surface?
-/// Represents a render surface.
+// TODO: Make more convenient
+// As it is currently impossible to implement a new render surface
+// because of the enum in lib.rs
+/// Represents a surface that is suitable for rendering.
 pub trait RenderSurface {
     /// Returns the size of the render surface.
     fn size(&self) -> (u32, u32);
@@ -89,6 +92,8 @@ pub struct Renderer {
     render_surface: Box<dyn RenderSurface>,
     /// The render command buffers used by the renderer.
     render_command_buffers: Box<[RenderCommandBuffer]>,
+    /// The buffers used by the renderer.
+    buffers: Buffers,
 }
 
 impl Renderer {
@@ -142,7 +147,6 @@ impl Renderer {
                     descriptor_set_allocator,
                     descriptor_set_layout.clone(),
                     [
-                        // TODO: Add buffers
                         WriteDescriptorSet::image_view(0, view.clone()),
                         WriteDescriptorSet::buffer(1, buffers.camera_uniform.clone()),
                         WriteDescriptorSet::buffer(2, buffers.triangles_buffer.clone()),
@@ -184,6 +188,7 @@ impl Renderer {
             pipeline,
             render_surface,
             render_command_buffers,
+            buffers: buffers.clone(),
         }
     }
 
@@ -213,11 +218,11 @@ impl Renderer {
                     descriptor_set_layout.clone(),
                     [
                         WriteDescriptorSet::image_view(0, view.clone()),
-                        // WriteDescriptorSet::buffer(1, buffers.camera_uniform.clone()),
-                        // WriteDescriptorSet::buffer(2, buffers.triangles_buffer.clone()),
-                        // WriteDescriptorSet::buffer(3, buffers.materials_buffer.clone()),
-                        // WriteDescriptorSet::buffer(4, buffers.models_buffer.clone()),
-                        // WriteDescriptorSet::buffer(5, buffers.bvhs_buffer.clone()),
+                        WriteDescriptorSet::buffer(1, self.buffers.camera_uniform.clone()),
+                        WriteDescriptorSet::buffer(2, self.buffers.triangles_buffer.clone()),
+                        WriteDescriptorSet::buffer(3, self.buffers.materials_buffer.clone()),
+                        WriteDescriptorSet::buffer(4, self.buffers.models_buffer.clone()),
+                        WriteDescriptorSet::buffer(5, self.buffers.bvhs_buffer.clone()),
                     ],
                     [],
                 )
@@ -251,6 +256,10 @@ impl Renderer {
     }
 
     /// Renders the scene.
+    ///
+    /// ## Note
+    ///
+    /// Use the argument `on_waiting_for_render` to update anything unrelated to rendering while waiting for the render to complete.
     ///
     /// ## Panics
     ///
