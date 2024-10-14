@@ -55,6 +55,11 @@ layout(set = 0, binding = 5) readonly buffer BvhBuffer {
     Bvh bvhs[];
 };
 
+layout(push_constant) uniform ShaderConstants {
+    uint max_bounce_count;
+    uint nb_samples;
+} shader_constants;
+
 struct Ray {
     vec3 origin;
     vec3 direction;
@@ -173,8 +178,6 @@ HitRecord ray_hit_bvh(in Ray ray, in uint bvh_index) {
         Bvh current_bvh = bvhs[bvh_stack[--stack_size]];
         
         // Leaf node
-        // TODO: Don't test triangles if BVH is further than current hit ?
-        // if ((stack_size+1 == max_depth || current_bvh.left_offset == 0) && ray_bvh_intersect(ray, current_bvh) < hit_record.t) {
         if (stack_size+1 == max_depth || current_bvh.left_offset == 0) {
             for (int i = 0; i < current_bvh.triangle_count; i++) {
                 Triangle triangle = triangles[current_bvh.triangle_offset + i];
@@ -247,11 +250,10 @@ vec3 sky_color(vec3 direction) {
 }
 
 vec3 compute_color(in Ray ray, inout uint state) {
-    const int max_bounce_count = 6;
     vec3 incoming_light = vec3(0.0);
     vec3 color = vec3(1.0);
 
-    for (int bounce = 0; bounce < max_bounce_count; bounce++) {
+    for (int bounce = 0; bounce < shader_constants.max_bounce_count; bounce++) {
         HitRecord closest_hit_record;
         closest_hit_record.t = infinity;
 
@@ -296,19 +298,18 @@ void main() {
     const vec2 dim = imageSize(img);
     const vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
     const float aspect_ratio = dim.x / dim.y;
-    const int nb_samples = 10;
 
     vec3 accumulated_color = vec3(0.0);
 
     // TODO: Only accumulate if hit ?
-    for (int s = 0; s < nb_samples; s++) {
+    for (int s = 0; s < shader_constants.nb_samples; s++) {
         uint state = s*685743 + gl_GlobalInvocationID.x*9841 + gl_GlobalInvocationID.y;
         // TODO: Don't jitter randomly but in a spherical grid (with more ray closer to the center)
         Ray jittered_ray = jittered_primary_ray(uv, aspect_ratio, state);
         accumulated_color += compute_color(jittered_ray, state);
     }
 
-    vec3 color = accumulated_color / float(nb_samples);
+    vec3 color = accumulated_color / float(shader_constants.nb_samples);
 
     // Gamma correction
     color = pow(color, vec3(1.0 / 2.2));

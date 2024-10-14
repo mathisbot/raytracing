@@ -15,19 +15,6 @@ Ray tracing engine built in Rust using Vulkano.
 
 ## Usage
 
-For the time being, it is not possible to completely configure the engine other than by modifying the source code.
-
-Several variables are of interest:
-- Model paths in `src/main.rs`
-
-- `max_depth` in `rt-engine/src/shader/ray_trace.comp`: BVH max depth
-- `nb_samples` in `rt-engine/src/shader/ray_trace.comp`: Samples per pixels
-- `max_bounce_count` in `rt-engine/src/shader/ray_trace.comp`: Maximum number of bounces for a single ray
-- Materials in `rt-engine/src/shader/models.rs`
-
-Keep in mind that for obvious reasons, I didn't include the `.obj` files of the models.
-You will have to find suitable models and modify `lib.rs` to load include their paths.
-
 To run the engine, use `cargo run --release`.
 
 Please note that you will need the Vulkan Runtime to use the application.
@@ -35,6 +22,11 @@ The Runtime is very likely to be shipped with your graphics driver on Windows an
 but you might need to install it on macOS.
 It is also easier (but not mandatory) to have the Vulkan SDK installed when compiling the application,
 especially for shader compilation.
+
+For obvious reasons, I didn't include the `.obj` files of the models.
+You will have to find suitable models and modify `lib.rs` to load include their paths.
+
+Temporarily, you can only edit the materials in `rt-engine/src/shader/models.rs`.
 
 ## Performances
 
@@ -51,7 +43,7 @@ I still managed to run a minimum of 60 fps, even when staying very to close to t
 
 ## To-Do
 
-- Textures
+- Textures / Materials
 - Optimization
 
 ## Contributing

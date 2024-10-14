@@ -83,17 +83,19 @@ pub struct Buffers {
 }
 
 /// Represents a renderer.
-pub struct Renderer {
+pub(crate) struct Renderer {
     /// The queue used by the renderer.
     queue: Arc<Queue>,
     /// The compute pipeline used by the renderer.
-    pipeline: Arc<ComputePipeline>,
+    _pipeline: Arc<ComputePipeline>,
     /// The render surface used by the renderer.
     render_surface: Box<dyn RenderSurface>,
     /// The render command buffers used by the renderer.
     render_command_buffers: Box<[RenderCommandBuffer]>,
     /// The buffers used by the renderer.
-    buffers: Buffers,
+    _buffers: Buffers,
+    /// Shader parameters descriptor.
+    _shader_descriptor: crate::shader::ShaderDescriptor,
 }
 
 impl Renderer {
@@ -110,6 +112,7 @@ impl Renderer {
         command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
         render_surface: Box<dyn RenderSurface>,
         buffers: &Buffers,
+        shader_descriptor: crate::shader::ShaderDescriptor,
     ) -> Self {
         let (width, height) = render_surface.size();
 
@@ -168,6 +171,12 @@ impl Renderer {
                 builder
                     .bind_pipeline_compute(pipeline.clone())
                     .unwrap()
+                    .push_constants(
+                        pipeline.layout().clone(),
+                        0,
+                        crate::shader::source::ShaderConstants::from(shader_descriptor),
+                    )
+                    .unwrap()
                     .bind_descriptor_sets(
                         vulkano::pipeline::PipelineBindPoint::Compute,
                         pipeline.layout().clone(),
@@ -185,10 +194,11 @@ impl Renderer {
 
         Self {
             queue: queue.clone(),
-            pipeline,
+            _pipeline: pipeline,
             render_surface,
             render_command_buffers,
-            buffers: buffers.clone(),
+            _buffers: buffers.clone(),
+            _shader_descriptor: shader_descriptor,
         }
     }
 
@@ -198,7 +208,7 @@ impl Renderer {
     ///
     /// This function panics if the command buffers cannot be recreated, typically if the pipeline is out of date
     /// or if the render surface is invalid.
-    pub fn recreate_command_buffers(
+    pub fn _recreate_command_buffers(
         &mut self,
         descriptor_set_allocator: &Arc<StandardDescriptorSetAllocator>,
         command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
@@ -207,7 +217,7 @@ impl Renderer {
         let (width, height) = render_surface.size();
 
         let work_group_count = [(width + 15) / 16, (height + 15) / 16, 1];
-        let descriptor_set_layout = self.pipeline.layout().set_layouts().first().unwrap();
+        let descriptor_set_layout = self._pipeline.layout().set_layouts().first().unwrap();
 
         self.render_command_buffers = render_surface
             .views()
@@ -218,11 +228,11 @@ impl Renderer {
                     descriptor_set_layout.clone(),
                     [
                         WriteDescriptorSet::image_view(0, view.clone()),
-                        WriteDescriptorSet::buffer(1, self.buffers.camera_uniform.clone()),
-                        WriteDescriptorSet::buffer(2, self.buffers.triangles_buffer.clone()),
-                        WriteDescriptorSet::buffer(3, self.buffers.materials_buffer.clone()),
-                        WriteDescriptorSet::buffer(4, self.buffers.models_buffer.clone()),
-                        WriteDescriptorSet::buffer(5, self.buffers.bvhs_buffer.clone()),
+                        WriteDescriptorSet::buffer(1, self._buffers.camera_uniform.clone()),
+                        WriteDescriptorSet::buffer(2, self._buffers.triangles_buffer.clone()),
+                        WriteDescriptorSet::buffer(3, self._buffers.materials_buffer.clone()),
+                        WriteDescriptorSet::buffer(4, self._buffers.models_buffer.clone()),
+                        WriteDescriptorSet::buffer(5, self._buffers.bvhs_buffer.clone()),
                     ],
                     [],
                 )
@@ -236,11 +246,17 @@ impl Renderer {
                 .unwrap();
 
                 builder
-                    .bind_pipeline_compute(self.pipeline.clone())
+                    .bind_pipeline_compute(self._pipeline.clone())
+                    .unwrap()
+                    .push_constants(
+                        self._pipeline.layout().clone(),
+                        0,
+                        crate::shader::source::ShaderConstants::from(self._shader_descriptor),
+                    )
                     .unwrap()
                     .bind_descriptor_sets(
                         vulkano::pipeline::PipelineBindPoint::Compute,
-                        self.pipeline.layout().clone(),
+                        self._pipeline.layout().clone(),
                         0,
                         vec![descriptor_set],
                     )

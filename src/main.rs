@@ -49,6 +49,10 @@ fn main() {
             ],
             positions: vec![[0.0, -3.0, -10.0], [0.0, 0.0, 0.0]],
         },
+        shader_descriptor: rt_engine::shader::ShaderDescriptor {
+            max_bounces: 6,
+            samples: 10,
+        },
     };
 
     // let config = rt_engine::RayTracingAppConfig {
@@ -67,6 +71,10 @@ fn main() {
     //             "assets/models/gun/Pistol_02.obj".to_string(),
     //         ],
     //         positions: vec![[0.0, -3.0, -10.0], [0.0, 0.0, 0.0]],
+    //     },
+    //     shader_descriptor: rt_engine::shader::ShaderDescriptor {
+    //         max_bounces: 6,
+    //         samples: 10,
     //     },
     // };
 

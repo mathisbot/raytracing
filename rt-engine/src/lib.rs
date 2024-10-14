@@ -312,6 +312,7 @@ impl RayTracingApp {
             &context.command_buffer_allocator,
             render_surface,
             &buffers,
+            config.shader_descriptor,
         );
 
         tracing::debug!("Successfully initialized");
@@ -434,7 +435,8 @@ impl RayTracingApp {
                             camera_handle.camera.right = camera.right();
                             drop(camera_handle);
 
-                            // tracing::trace!("FPS: {}", 1.0 / elapsed);
+                            // Innacurate at high FPS
+                            // tracing::trace!("FPS: {:.01}", 1.0 / elapsed);
 
                             renderer.render(&mut on_waiting_for_render);
                         }
@@ -461,6 +463,8 @@ pub struct RayTracingAppConfig {
     pub controllers: Vec<Box<dyn control::controller::Controller>>,
     /// Scene data to render.
     pub scene_descriptor: shader::SceneDescriptor,
+    /// Shader parameters.
+    pub shader_descriptor: shader::ShaderDescriptor,
 }
 
 #[non_exhaustive]
