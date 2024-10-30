@@ -1,4 +1,4 @@
-use super::super::Input;
+use super::super::{Input, Inputs};
 
 #[derive(Copy, Clone, Debug)]
 /// Represents a first person camera.
@@ -124,7 +124,12 @@ impl super::Camera for FirstPerson {
         self.right
     }
 
-    fn process_inputs(&mut self, inputs: &[Input], delta_seconds: f32) {
+    fn process_inputs(&mut self, inputs: Inputs, delta_seconds: f32) {
+        let inputs = Into::<Box<[Input]>>::into(inputs);
+        if inputs.is_empty() {
+            return;
+        }
+
         let relative_speed = self.speed * delta_seconds;
 
         for input in inputs {

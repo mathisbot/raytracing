@@ -28,5 +28,5 @@ pub trait Controller {
     /// Fetch the inputs from the controller's state.
     ///
     /// This will be used by the `Camera` to update its state.
-    fn fetch_input(&mut self) -> Vec<super::Input>;
+    fn fetch_input(&mut self) -> super::Inputs;
 }

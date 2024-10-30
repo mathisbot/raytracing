@@ -32,5 +32,5 @@ pub trait Camera {
     /// Processes the inputs and updates the camera.
     ///
     /// Typically, this means updating the camera's position, orientation, etc.
-    fn process_inputs(&mut self, inputs: &[super::Input], delta_seconds: f32);
+    fn process_inputs(&mut self, inputs: super::Inputs, delta_seconds: f32);
 }

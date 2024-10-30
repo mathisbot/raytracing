@@ -1,4 +1,4 @@
-use super::super::Input;
+use super::super::{Input, Inputs};
 
 #[derive(Copy, Clone, Debug, Default)]
 /// Represents the state of a motion device.
@@ -23,16 +23,16 @@ impl super::Controller for MotionDevice {
     }
 
     #[must_use]
-    fn fetch_input(&mut self) -> Vec<Input> {
+    fn fetch_input(&mut self) -> Inputs {
         let yaw = core::mem::take(&mut self.0);
         let pitch = core::mem::take(&mut self.1);
 
-        let mut inputs = Vec::with_capacity(2);
+        let mut inputs = Inputs::default();
         if yaw != 0.0 {
-            inputs.push(Input::Yaw(yaw));
+            inputs.accumulate(Input::Yaw(yaw).into());
         }
         if pitch != 0.0 {
-            inputs.push(Input::Pitch(pitch));
+            inputs.accumulate(Input::Pitch(pitch).into());
         }
 
         inputs

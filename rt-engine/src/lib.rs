@@ -424,9 +424,12 @@ impl RayTracingApp {
 
                             let inputs = controllers
                                 .iter_mut()
-                                .flat_map(|controller| controller.fetch_input())
-                                .collect::<Vec<_>>();
-                            camera.process_inputs(&inputs, elapsed);
+                                .map(|controller| controller.fetch_input())
+                                .fold(crate::control::Inputs::default(), |mut acc, i| {
+                                    acc.accumulate(i);
+                                    acc
+                                });
+                            camera.process_inputs(inputs, elapsed);
 
                             let mut camera_handle = buffers.camera_uniform.write().unwrap();
                             camera_handle.camera.position = camera.position().into();
