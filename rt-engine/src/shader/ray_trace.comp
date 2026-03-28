@@ -73,6 +73,7 @@ struct HitRecord {
 };
 
 const float infinity = 1.0 / 0.0;
+const float two_pi = 6.28318530718;
 
 // PCG
 uint hash(inout uint state) {
@@ -96,23 +97,16 @@ float floatConstruct(in uint m) {
 // Random float in [0:1]
 float random(inout uint state) { return floatConstruct(hash(state)); }
 
-// Random float in [-1:1] with normal distribution
-float random_normal(inout uint state) {
-    float theta = 2.0 * 3.14159265359 * random(state);
-    return sqrt(-2.0 * log(random(state))) * cos(theta);
-}
-
 // Random direction on unit sphere
 vec3 random_dir(inout uint state) {
-    float a = random_normal(state);
-    float b = random_normal(state);
-    float c = random_normal(state);
-
-    return normalize(vec3(a, b, c));
+    float z = random(state) * 2.0 - 1.0;
+    float angle = two_pi * random(state);
+    float radius = sqrt(max(0.0, 1.0 - z * z));
+    return vec3(radius * cos(angle), radius * sin(angle), z);
 }
 
 vec2 random_in_circle(inout uint state) {
-    float angle = 2.0 * 3.14159265359 * random(state);
+    float angle = two_pi * random(state);
     vec2 point = vec2(cos(angle), sin(angle));
     return point * sqrt(random(state));
 }
@@ -145,8 +139,6 @@ bool ray_triangle_intersect(in Ray ray, in Triangle triangle, out HitRecord hit_
         hit_record.t = dst;
         hit_record.hit_point = ray.origin + ray.direction * dst;
         hit_record.normal = normalize(triangle.normal);
-        // TODO: Material ID
-        hit_record.material = materials[0];
 
         return true;
     }
@@ -168,6 +160,7 @@ float ray_bvh_intersect(in Ray ray, in Bvh bvh) {
 HitRecord ray_hit_bvh(in Ray ray, in uint bvh_index) {
     HitRecord hit_record;
     hit_record.t = infinity;
+    hit_record.material = materials[0];
 
     const uint max_depth = 25;
     uint bvh_stack[max_depth];
@@ -219,9 +212,9 @@ HitRecord ray_hit_bvh(in Ray ray, in uint bvh_index) {
     return hit_record;
 }
 
-Ray jittered_primary_ray(in vec2 uv, in float aspect_ratio, inout uint state) {
+Ray jittered_primary_ray(in vec2 uv, in vec2 inv_image_size, in float aspect_ratio, inout uint state) {
     vec2 point_in_circle = random_in_circle(state);
-    vec2 jittered_uv = uv + point_in_circle / imageSize(img);
+    vec2 jittered_uv = uv + point_in_circle * inv_image_size;
 
     vec2 trans = 2.0 * (jittered_uv) - vec2(1.0);
 
@@ -295,8 +288,9 @@ vec3 compute_color(in Ray ray, inout uint state) {
 }
 
 void main() {
-    const vec2 dim = imageSize(img);
-    const vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
+    const vec2 dim = vec2(imageSize(img));
+    const vec2 inv_dim = 1.0 / dim;
+    const vec2 uv = vec2(gl_GlobalInvocationID.xy) * inv_dim;
     const float aspect_ratio = dim.x / dim.y;
 
     vec3 accumulated_color = vec3(0.0);
@@ -305,7 +299,7 @@ void main() {
     for (int s = 0; s < shader_constants.nb_samples; s++) {
         uint state = s*685743 + gl_GlobalInvocationID.x*9841 + gl_GlobalInvocationID.y;
         // TODO: Don't jitter randomly but in a spherical grid (with more ray closer to the center)
-        Ray jittered_ray = jittered_primary_ray(uv, aspect_ratio, state);
+        Ray jittered_ray = jittered_primary_ray(uv, inv_dim, aspect_ratio, state);
         accumulated_color += compute_color(jittered_ray, state);
     }
 

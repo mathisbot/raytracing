@@ -29,6 +29,27 @@ pub struct SceneDescriptor {
     pub positions: Vec<[f32; 3]>,
 }
 
+impl SceneDescriptor {
+    #[allow(clippy::missing_const_for_fn)]
+    #[must_use]
+    /// Creates a scene descriptor from model paths and positions.
+    pub fn new(model_paths: Vec<String>, positions: Vec<[f32; 3]>) -> Self {
+        Self {
+            model_paths,
+            positions,
+        }
+    }
+
+    #[must_use]
+    /// Convenience constructor for a scene with a single model.
+    pub fn single_model(model_path: String, position: [f32; 3]) -> Self {
+        Self {
+            model_paths: vec![model_path],
+            positions: vec![position],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[allow(clippy::module_name_repetitions)]
 /// This struct is used at the initialization of the application.
@@ -39,6 +60,26 @@ pub struct ShaderDescriptor {
     pub max_bounces: u8,
     /// Max number of samples for a pixel.
     pub samples: u16,
+}
+
+impl ShaderDescriptor {
+    #[must_use]
+    /// Creates shader parameters.
+    pub const fn new(max_bounces: u8, samples: u16) -> Self {
+        Self {
+            max_bounces,
+            samples,
+        }
+    }
+}
+
+impl Default for ShaderDescriptor {
+    fn default() -> Self {
+        Self {
+            max_bounces: 6,
+            samples: 16,
+        }
+    }
 }
 
 impl From<ShaderDescriptor> for source::ShaderConstants {

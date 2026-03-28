@@ -346,14 +346,10 @@ impl winit::application::ApplicationHandler for WindowAppLoop {
         let elapsed = self.start.elapsed().as_secs_f32();
         self.start = std::time::Instant::now();
 
-        let inputs = self
-            .controllers
-            .iter_mut()
-            .map(|controller| controller.fetch_input())
-            .fold(crate::control::Inputs::default(), |mut acc, i| {
-                acc.accumulate(i);
-                acc
-            });
+        let mut inputs = crate::control::Inputs::default();
+        for controller in &mut self.controllers {
+            inputs.accumulate(controller.fetch_input());
+        }
         self.camera.process_inputs(inputs, elapsed);
 
         let mut camera_handle = self.buffers.camera_uniform.write().unwrap();
@@ -543,6 +539,11 @@ impl RayTracingApp {
             }
         }
     }
+
+    /// Run the application without a per-frame callback.
+    pub fn run_forever(self) {
+        self.run(Box::new(|_| {}));
+    }
 }
 
 /// The configuration of the ray tracing application.
@@ -557,6 +558,26 @@ pub struct RayTracingAppConfig {
     pub scene_descriptor: shader::SceneDescriptor,
     /// Shader parameters.
     pub shader_descriptor: shader::ShaderDescriptor,
+}
+
+impl RayTracingAppConfig {
+    #[must_use]
+    /// Creates a new configuration with explicit fields.
+    pub fn new(
+        render_surface_type: RenderSurfaceType,
+        camera: Box<dyn control::camera::Camera>,
+        controllers: Vec<Box<dyn control::controller::Controller>>,
+        scene_descriptor: shader::SceneDescriptor,
+        shader_descriptor: shader::ShaderDescriptor,
+    ) -> Self {
+        Self {
+            render_surface_type,
+            camera,
+            controllers,
+            scene_descriptor,
+            shader_descriptor,
+        }
+    }
 }
 
 #[non_exhaustive]
