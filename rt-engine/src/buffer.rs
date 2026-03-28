@@ -60,7 +60,7 @@ where
     )?;
 
     let mut builder = vulkano::command_buffer::AutoCommandBufferBuilder::primary(
-        command_buffer_allocator,
+        command_buffer_allocator.clone(),
         queue.queue_family_index(),
         vulkano::command_buffer::CommandBufferUsage::OneTimeSubmit,
     )

@@ -23,13 +23,13 @@ pub struct Image {
     /// The height of the image.
     height: u32,
     /// The internal image view of the image.
-    image_view: [Arc<ImageView>; 1],
+    views: [Arc<ImageView>; 1],
     /// CPU accessible buffer
     inner_buffer: Subbuffer<[u8]>,
     /// Transfer queue will be used to copy the image to the buffer
     compute_queue: Arc<Queue>,
     /// Command buffer used to copy the image to the buffer
-    command_buffer: Arc<PrimaryAutoCommandBuffer<Arc<StandardCommandBufferAllocator>>>,
+    command_buffer: Arc<PrimaryAutoCommandBuffer>,
     /// Used to benchmark the rendering time.
     start_time: std::time::Instant,
 }
@@ -88,7 +88,7 @@ impl Image {
 
         let command_buffer = {
             let mut builder = vulkano::command_buffer::AutoCommandBufferBuilder::primary(
-                command_buffer_allocator,
+                command_buffer_allocator.clone(),
                 compute_queue.queue_family_index(),
                 vulkano::command_buffer::CommandBufferUsage::OneTimeSubmit,
             )
@@ -108,7 +108,7 @@ impl Image {
             path: path.clone(),
             width: *width,
             height: *height,
-            image_view: [image_view],
+            views: [image_view],
             inner_buffer,
             compute_queue,
             command_buffer,
@@ -118,19 +118,16 @@ impl Image {
 }
 
 impl super::RenderSurface for Image {
-    #[must_use]
     #[inline]
     fn size(&self) -> (u32, u32) {
         (self.width, self.height)
     }
 
-    #[must_use]
     #[inline]
     fn views(&self) -> &[Arc<ImageView>] {
-        &self.image_view
+        &self.views
     }
 
-    #[must_use = "The function returns a future that must be awaited"]
     #[inline]
     fn acquire(&mut self) -> Result<(u32, Box<dyn vulkano::sync::GpuFuture>), super::AcquireError> {
         Ok((0, Box::new(sync::now(self.compute_queue.device().clone()))))

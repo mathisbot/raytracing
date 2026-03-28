@@ -13,7 +13,6 @@
 //! - Window Rendering
 //! - Image Rendering
 
-#![deny(unsafe_code)]
 #![warn(clippy::pedantic, clippy::nursery)]
 #![warn(
     clippy::cognitive_complexity,
@@ -69,7 +68,7 @@ use vulkano::{
     },
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
-        Device, DeviceExtensions, Features, Queue, QueueCreateInfo,
+        Device, DeviceExtensions, DeviceFeatures, Queue, QueueCreateInfo,
     },
     instance::{Instance, InstanceCreateInfo},
     memory::allocator::StandardMemoryAllocator,
@@ -116,7 +115,8 @@ impl Context {
         tracing::debug!("Vulkan library loaded");
 
         let instance_extensions = match config.render_surface_type {
-            RenderSurfaceType::Window(_) => Surface::required_extensions(event_loop.unwrap()),
+            RenderSurfaceType::Window(_) => Surface::required_extensions(event_loop.unwrap())
+                .expect("failed to query required surface extensions"),
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => vulkano::instance::InstanceExtensions::empty(),
         };
@@ -174,8 +174,11 @@ impl Context {
 
         tracing::info!("Using device {}", physical_device.properties().device_name,);
 
-        let (device, compute_queue, transfer_queue) =
-            Self::create_device(physical_device, &device_extensions, &Features::empty());
+        let (device, compute_queue, transfer_queue) = Self::create_device(
+            physical_device,
+            &device_extensions,
+            &DeviceFeatures::empty(),
+        );
 
         tracing::debug!("Vulkan device created");
 
@@ -200,7 +203,7 @@ impl Context {
     fn create_device(
         physical_device: Arc<PhysicalDevice>,
         device_extensions: &DeviceExtensions,
-        device_features: &Features,
+        device_features: &DeviceFeatures,
     ) -> (Arc<Device>, Arc<Queue>, Arc<Queue>) {
         let queue_family_compute = physical_device
             .queue_family_properties()
@@ -261,12 +264,119 @@ impl Context {
     }
 }
 
+/// Event loop handler for window-based rendering.
+struct WindowAppLoop {
+    /// Vulkan context.
+    context: Context,
+    /// Window descriptor.
+    window_descriptor: WindowDescriptor,
+    /// Shader parameters.
+    shader_descriptor: crate::shader::ShaderDescriptor,
+    /// Input controllers.
+    controllers: Vec<Box<dyn crate::control::controller::Controller>>,
+    /// Active camera.
+    camera: Box<dyn crate::control::camera::Camera>,
+    /// Renderer instance.
+    renderer: Option<Renderer>,
+    /// GPU buffers.
+    buffers: Buffers,
+    /// Timestamp of previous frame.
+    start: std::time::Instant,
+    /// User callback invoked while waiting for render.
+    on_waiting_for_render: Box<dyn FnMut(u32)>,
+}
+
+impl winit::application::ApplicationHandler for WindowAppLoop {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+
+        if self.renderer.is_none() {
+            let render_surface = Box::new(crate::render::window::Window::new(
+                event_loop,
+                &self.context.device,
+                &self.window_descriptor,
+            ));
+
+            self.renderer = Some(Renderer::new(
+                &self.context.device,
+                &self.context.compute_queue,
+                &self.context.descriptor_set_allocator,
+                &self.context.command_buffer_allocator,
+                render_surface,
+                &self.buffers,
+                self.shader_descriptor,
+            ));
+        }
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        if matches!(event, winit::event::WindowEvent::CloseRequested) {
+            event_loop.exit();
+        }
+
+        let controller_event = winit::event::Event::WindowEvent { window_id, event };
+        for controller in &mut self.controllers {
+            controller.handle_event(&controller_event);
+        }
+    }
+
+    fn device_event(
+        &mut self,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        let controller_event = winit::event::Event::DeviceEvent { device_id, event };
+        for controller in &mut self.controllers {
+            controller.handle_event(&controller_event);
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        let controller_event = winit::event::Event::AboutToWait;
+        for controller in &mut self.controllers {
+            controller.handle_event(&controller_event);
+        }
+
+        let elapsed = self.start.elapsed().as_secs_f32();
+        self.start = std::time::Instant::now();
+
+        let inputs = self
+            .controllers
+            .iter_mut()
+            .map(|controller| controller.fetch_input())
+            .fold(crate::control::Inputs::default(), |mut acc, i| {
+                acc.accumulate(i);
+                acc
+            });
+        self.camera.process_inputs(inputs, elapsed);
+
+        let mut camera_handle = self.buffers.camera_uniform.write().unwrap();
+        camera_handle.camera.position = self.camera.position().into();
+        camera_handle.camera.view = self.camera.direction().into();
+        camera_handle.camera.up = self.camera.up().into();
+        camera_handle.camera.right = self.camera.right();
+        drop(camera_handle);
+
+        if let Some(renderer) = &mut self.renderer {
+            renderer.render(&mut self.on_waiting_for_render);
+        }
+    }
+}
+
 /// The main ray tracing application.
 pub struct RayTracingApp {
     /// The configuration of the ray tracing application.
     config: RayTracingAppConfig,
+    /// Vulkan context.
+    context: Context,
     /// The renderer.
-    renderer: Renderer,
+    renderer: Option<Renderer>,
     /// The GPU buffers.
     buffers: Buffers,
     /// The optional event loop.
@@ -282,43 +392,44 @@ impl RayTracingApp {
     /// This function will panic if the application encounters any errors during initialization.
     pub fn new(config: RayTracingAppConfig) -> Self {
         let event_loop = match config.render_surface_type {
-            RenderSurfaceType::Window(_) => Some(winit::event_loop::EventLoop::new()),
+            RenderSurfaceType::Window(_) => Some(
+                winit::event_loop::EventLoop::new().expect("failed to create winit event loop"),
+            ),
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => None,
         };
         let context = Context::new(&config, event_loop.as_ref());
 
-        let render_surface: Box<dyn RenderSurface> = match &config.render_surface_type {
-            RenderSurfaceType::Window(descriptor) => Box::new(crate::render::window::Window::new(
-                event_loop.as_ref().unwrap(),
-                &context.device,
-                descriptor,
-            )),
-            #[cfg(feature = "image")]
-            RenderSurfaceType::Image(descriptor) => Box::new(Image::new(
-                descriptor,
-                context.memory_allocator.clone(),
-                &context.command_buffer_allocator,
-                context.compute_queue.clone(),
-            )),
-        };
-
         let buffers = Self::init_gpu_buffers(&config, &context);
 
-        let renderer = Renderer::new(
-            &context.device,
-            &context.compute_queue,
-            &context.descriptor_set_allocator,
-            &context.command_buffer_allocator,
-            render_surface,
-            &buffers,
-            config.shader_descriptor,
-        );
+        let renderer = match &config.render_surface_type {
+            RenderSurfaceType::Window(_) => None,
+            #[cfg(feature = "image")]
+            RenderSurfaceType::Image(descriptor) => {
+                let render_surface: Box<dyn RenderSurface> = Box::new(Image::new(
+                    descriptor,
+                    context.memory_allocator.clone(),
+                    &context.command_buffer_allocator,
+                    context.compute_queue.clone(),
+                ));
+
+                Some(Renderer::new(
+                    &context.device,
+                    &context.compute_queue,
+                    &context.descriptor_set_allocator,
+                    &context.command_buffer_allocator,
+                    render_surface,
+                    &buffers,
+                    config.shader_descriptor,
+                ))
+            }
+        };
 
         tracing::debug!("Successfully initialized");
 
         Self {
             config,
+            context,
             renderer,
             buffers,
             event_loop,
@@ -384,73 +495,51 @@ impl RayTracingApp {
         match self.config.render_surface_type {
             RenderSurfaceType::Window(_) => {
                 let Self {
+                    context,
                     event_loop,
                     config:
                         RayTracingAppConfig {
-                            mut controllers,
-                            mut camera,
+                            render_surface_type,
+                            shader_descriptor,
+                            controllers,
+                            camera,
                             ..
                         },
-                    mut renderer,
+                    renderer,
                     buffers,
                     ..
                 } = self;
 
-                let mut start = std::time::Instant::now();
+                let window_descriptor = match render_surface_type {
+                    RenderSurfaceType::Window(descriptor) => descriptor,
+                    #[cfg(feature = "image")]
+                    RenderSurfaceType::Image(_) => unreachable!(),
+                };
 
-                // ## Panics
-                // This line cannot panic because the event loop is always `Some` for window rendering.
-                event_loop.unwrap().run(move |event, _, control_flow| {
-                    for controller in &mut controllers {
-                        controller.handle_event(&event);
-                    }
-                    match event {
-                        winit::event::Event::WindowEvent {
-                            event: winit::event::WindowEvent::CloseRequested,
-                            ..
-                        } => {
-                            *control_flow = winit::event_loop::ControlFlow::Exit;
-                        }
-                        // winit::event::Event::WindowEvent {
-                        //     event: winit::event::WindowEvent::Resized(_size),
-                        //     ..
-                        // } => {
-                        //     // TODO: Handle window resizing
-                        //     todo!("Handle window resizing");
-                        // }
-                        winit::event::Event::MainEventsCleared => {
-                            let elapsed = start.elapsed().as_secs_f32();
-                            start = std::time::Instant::now();
+                let mut app = WindowAppLoop {
+                    context,
+                    window_descriptor,
+                    shader_descriptor,
+                    controllers,
+                    camera,
+                    renderer,
+                    buffers,
+                    start: std::time::Instant::now(),
+                    on_waiting_for_render,
+                };
 
-                            let inputs = controllers
-                                .iter_mut()
-                                .map(|controller| controller.fetch_input())
-                                .fold(crate::control::Inputs::default(), |mut acc, i| {
-                                    acc.accumulate(i);
-                                    acc
-                                });
-                            camera.process_inputs(inputs, elapsed);
-
-                            let mut camera_handle = buffers.camera_uniform.write().unwrap();
-                            camera_handle.camera.position = camera.position().into();
-                            camera_handle.camera.view = camera.direction().into();
-                            camera_handle.camera.up = camera.up().into();
-                            camera_handle.camera.right = camera.right();
-                            drop(camera_handle);
-
-                            // Innacurate at high FPS
-                            // tracing::trace!("FPS: {:.01}", 1.0 / elapsed);
-
-                            renderer.render(&mut on_waiting_for_render);
-                        }
-                        _ => {}
-                    }
-                });
+                event_loop
+                    .unwrap()
+                    .run_app(&mut app)
+                    .expect("winit event loop run failed");
             }
             #[cfg(feature = "image")]
             RenderSurfaceType::Image(_) => {
                 let Self { mut renderer, .. } = self;
-                renderer.render(&mut on_waiting_for_render);
+                renderer
+                    .as_mut()
+                    .expect("image renderer was not initialized")
+                    .render(&mut on_waiting_for_render);
             }
         }
     }

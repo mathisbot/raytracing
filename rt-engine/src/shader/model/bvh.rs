@@ -20,7 +20,7 @@ impl Bvh {
 
     #[inline]
     /// Grow the bounding box to include the given point
-    fn grow_to_include(min_bound: &mut [f32; 3], max_bound: &mut [f32; 3], point: &[f32; 3]) {
+    const fn grow_to_include(min_bound: &mut [f32; 3], max_bound: &mut [f32; 3], point: &[f32; 3]) {
         min_bound[0] = min_bound[0].min(point[0]);
         min_bound[1] = min_bound[1].min(point[1]);
         min_bound[2] = min_bound[2].min(point[2]);

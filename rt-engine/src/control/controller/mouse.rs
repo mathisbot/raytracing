@@ -23,7 +23,6 @@ impl super::Controller for Mouse {
         }
     }
 
-    #[must_use]
     fn fetch_input(&mut self) -> Inputs {
         let yaw = core::mem::take(&mut self.0);
         let pitch = core::mem::take(&mut self.1);

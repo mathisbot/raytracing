@@ -64,13 +64,13 @@ impl FirstPerson {
 
     #[inline]
     /// Sets the sensitivity of the camera.
-    pub fn set_sentivity(&mut self, sensitivity: f32) {
+    pub const fn set_sentivity(&mut self, sensitivity: f32) {
         self.sensitivity = sensitivity;
     }
 
     #[inline]
     /// Sets the speed of the camera.
-    pub fn set_speed(&mut self, speed: f32) {
+    pub const fn set_speed(&mut self, speed: f32) {
         self.speed = speed;
     }
 }
@@ -100,25 +100,21 @@ impl Default for FirstPerson {
 }
 
 impl super::Camera for FirstPerson {
-    #[must_use]
     #[inline]
     fn direction(&self) -> [f32; 3] {
         self.direction
     }
 
-    #[must_use]
     #[inline]
     fn position(&self) -> [f32; 3] {
         self.position
     }
 
-    #[must_use]
     #[inline]
     fn up(&self) -> [f32; 3] {
         self.up
     }
 
-    #[must_use]
     #[inline]
     fn right(&self) -> [f32; 3] {
         self.right

@@ -1,4 +1,5 @@
 use super::super::{Input, Inputs};
+use winit::keyboard::{Key, NamedKey};
 
 #[derive(Copy, Clone, Debug, Default)]
 /// Represents the state of a keyboard.
@@ -9,36 +10,29 @@ impl super::Controller for Keyboard {
         if let winit::event::Event::WindowEvent {
             event:
                 winit::event::WindowEvent::KeyboardInput {
-                    input:
-                        winit::event::KeyboardInput {
-                            state,
-                            virtual_keycode: Some(key),
-                            ..
-                        },
-                    ..
+                    event: key_event, ..
                 },
             ..
         } = event
         {
             // TODO: Personalize key bindings.
-            let mask = match key {
-                winit::event::VirtualKeyCode::Z => Input::Forward,
-                winit::event::VirtualKeyCode::Q => Input::Left,
-                winit::event::VirtualKeyCode::S => Input::Backward,
-                winit::event::VirtualKeyCode::D => Input::Right,
-                winit::event::VirtualKeyCode::Space => Input::Up,
-                winit::event::VirtualKeyCode::LShift => Input::Down,
+            let mask = match key_event.logical_key.as_ref() {
+                Key::Character("z" | "Z") => Input::Forward,
+                Key::Character("q" | "Q") => Input::Left,
+                Key::Character("s" | "S") => Input::Backward,
+                Key::Character("d" | "D") => Input::Right,
+                Key::Named(NamedKey::Space) => Input::Up,
+                Key::Named(NamedKey::Shift) => Input::Down,
                 _ => return,
             };
 
-            match state {
+            match key_event.state {
                 winit::event::ElementState::Pressed => self.0.accumulate(mask.into()),
                 winit::event::ElementState::Released => self.0.deccumulate(mask.into()),
             }
         }
     }
 
-    #[must_use]
     #[inline]
     fn fetch_input(&mut self) -> Inputs {
         self.0

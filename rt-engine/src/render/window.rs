@@ -12,7 +12,7 @@ use winit::{dpi::LogicalSize, window::CursorGrabMode};
 /// Represents a window.
 pub struct Window {
     /// Inner `winit` window.
-    window: Arc<winit::window::Window>,
+    inner: Arc<winit::window::Window>,
     /// The swapchain of the window.
     swapchain: Arc<Swapchain>,
     /// The final views of the swapchain.
@@ -33,37 +33,17 @@ impl Window {
     ///
     /// The function will panic if anything goes wrong during window creation.
     pub fn new(
-        event_loop: &winit::event_loop::EventLoop<()>,
+        event_loop: &winit::event_loop::ActiveEventLoop,
         device: &Arc<Device>,
         window_descriptor: &WindowDescriptor,
     ) -> Self {
-        let mut winit_window_builder: winit::window::WindowBuilder =
-            winit::window::WindowBuilder::new().with_title(&window_descriptor.title);
+        let mut window_attributes = winit::window::Window::default_attributes()
+            .with_title(&window_descriptor.title)
+            .with_resizable(window_descriptor.resizable);
 
-        winit_window_builder = match window_descriptor.mode {
-            Mode::BorderlessFullscreen => winit_window_builder.with_fullscreen(Some(
-                winit::window::Fullscreen::Borderless(event_loop.primary_monitor()),
-            )),
-            Mode::Fullscreen => {
-                winit_window_builder.with_fullscreen(Some(if cfg!(target_os = "macos") {
-                    winit::window::Fullscreen::Borderless(event_loop.primary_monitor())
-                } else {
-                    // FIXME: Exclusive fullscreen
-                    winit::window::Fullscreen::Exclusive({
-                        let video_mode = Self::get_best_videomode(
-                            &event_loop
-                                .primary_monitor()
-                                .expect("could not find primary monitor"),
-                        );
-                        tracing::debug!(
-                            "Best video mode: {}x{} @ {}Hz",
-                            video_mode.size().width,
-                            video_mode.size().height,
-                            video_mode.refresh_rate_millihertz() / 1000
-                        );
-                        video_mode
-                    })
-                }))
+        window_attributes = match window_descriptor.mode {
+            Mode::BorderlessFullscreen | Mode::Fullscreen => {
+                window_attributes.with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
             }
             Mode::Windowed => {
                 let WindowDescriptor {
@@ -74,15 +54,14 @@ impl Window {
                 } = window_descriptor;
 
                 if let Some(position) = position {
-                    winit_window_builder =
-                        winit_window_builder.with_position(winit::dpi::LogicalPosition::new(
+                    window_attributes =
+                        window_attributes.with_position(winit::dpi::LogicalPosition::new(
                             f64::from(position[0]),
                             f64::from(position[1]),
                         ));
                 }
-                winit_window_builder.with_inner_size(LogicalSize::new(*width, *height))
+                window_attributes.with_inner_size(LogicalSize::new(*width, *height))
             }
-            .with_resizable(window_descriptor.resizable),
         };
 
         let constraints = window_descriptor.resize_constraints.check_constraints();
@@ -95,16 +74,16 @@ impl Window {
             height: constraints.max_height,
         };
 
-        winit_window_builder =
-            if constraints.max_width < u32::MAX && constraints.max_height < u32::MAX {
-                winit_window_builder
-                    .with_min_inner_size(min_inner_size)
-                    .with_max_inner_size(max_inner_size)
-            } else {
-                winit_window_builder.with_min_inner_size(min_inner_size)
-            };
+        window_attributes = if constraints.max_width < u32::MAX && constraints.max_height < u32::MAX
+        {
+            window_attributes
+                .with_min_inner_size(min_inner_size)
+                .with_max_inner_size(max_inner_size)
+        } else {
+            window_attributes.with_min_inner_size(min_inner_size)
+        };
 
-        let winit_window = winit_window_builder.build(event_loop).unwrap();
+        let winit_window = event_loop.create_window(window_attributes).unwrap();
 
         if let Some(monitor) = winit_window.current_monitor() {
             if let Some(name) = monitor.name() {
@@ -134,7 +113,7 @@ impl Window {
             Self::create_swapchain(device.clone(), &window, window_descriptor);
 
         Self {
-            window,
+            inner: window,
             recreate_swapchain: false,
             image_index: 0,
             present_mode: window_descriptor.present_mode,
@@ -166,13 +145,14 @@ impl Window {
             "required surface format R8G8B8A8_UNORM is not supported"
         );
 
-        let mut available_swapchain_present_modes = device
+        let available_swapchain_present_modes = device
             .physical_device()
             .surface_present_modes(&surface, SurfaceInfo::default())
             .unwrap();
 
         let present_mode = if available_swapchain_present_modes
-            .any(|p| p == window_descriptor.present_mode.into())
+            .iter()
+            .any(|&p| p == window_descriptor.present_mode.into())
         {
             window_descriptor.present_mode
         } else {
@@ -209,24 +189,9 @@ impl Window {
         (swapchain, images_views)
     }
 
-    #[must_use]
-    /// Returns the best video mode of the given monitor.
-    fn get_best_videomode(monitor: &winit::monitor::MonitorHandle) -> winit::monitor::VideoMode {
-        monitor
-            .video_modes()
-            .max_by(|a, b| {
-                (a.size().width, a.size().height, a.refresh_rate_millihertz()).cmp(&(
-                    b.size().width,
-                    b.size().height,
-                    b.refresh_rate_millihertz(),
-                ))
-            })
-            .unwrap()
-    }
-
     /// Recreates the swapchain and its views.
     fn recreate_swapchain_and_views(&mut self) {
-        let [desired_width, desired_height]: [u32; 2] = self.window.inner_size().into();
+        let [desired_width, desired_height]: [u32; 2] = self.inner.inner_size().into();
 
         if desired_width == 0 || desired_height == 0 {
             return;
@@ -260,20 +225,17 @@ impl Window {
 }
 
 impl super::RenderSurface for Window {
-    #[must_use]
     #[inline]
     fn size(&self) -> (u32, u32) {
-        let size = self.window.inner_size();
+        let size = self.inner.inner_size();
         (size.width, size.height)
     }
 
-    #[must_use]
     #[inline]
     fn views(&self) -> &[Arc<vulkano::image::view::ImageView>] {
         &self.image_views
     }
 
-    #[must_use = "The function returns a future that must be awaited"]
     /// Acquires the next image to be rendered.
     ///
     /// ## Errors

@@ -7,7 +7,7 @@ use vulkano::{
     buffer::Subbuffer,
     command_buffer::{self, allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder},
     descriptor_set::{
-        allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet,
+        allocator::StandardDescriptorSetAllocator, DescriptorSet, WriteDescriptorSet,
     },
     device::{Device, Queue},
     image::view::ImageView,
@@ -31,8 +31,7 @@ pub struct PresentError;
 
 #[allow(clippy::module_name_repetitions)]
 /// The type of a render command buffer.
-pub type RenderCommandBuffer =
-    Arc<vulkano::command_buffer::PrimaryAutoCommandBuffer<Arc<StandardCommandBufferAllocator>>>;
+pub type RenderCommandBuffer = Arc<vulkano::command_buffer::PrimaryAutoCommandBuffer>;
 
 #[allow(clippy::module_name_repetitions)]
 // TODO: Make more convenient
@@ -86,16 +85,10 @@ pub struct Buffers {
 pub(crate) struct Renderer {
     /// The queue used by the renderer.
     queue: Arc<Queue>,
-    /// The compute pipeline used by the renderer.
-    _pipeline: Arc<ComputePipeline>,
     /// The render surface used by the renderer.
     render_surface: Box<dyn RenderSurface>,
     /// The render command buffers used by the renderer.
     render_command_buffers: Box<[RenderCommandBuffer]>,
-    /// The buffers used by the renderer.
-    _buffers: Buffers,
-    /// Shader parameters descriptor.
-    _shader_descriptor: crate::shader::ShaderDescriptor,
 }
 
 impl Renderer {
@@ -125,7 +118,7 @@ impl Renderer {
 
             let layout = PipelineLayout::new(
                 device.clone(),
-                PipelineDescriptorSetLayoutCreateInfo::from_stages(&[stage.clone()])
+                PipelineDescriptorSetLayoutCreateInfo::from_stages(std::slice::from_ref(&stage))
                     .into_pipeline_layout_create_info(device.clone())
                     .unwrap(),
             )
@@ -140,14 +133,14 @@ impl Renderer {
         };
         tracing::debug!("Pipeline created");
 
-        let work_group_count = [(width + 15) / 16, (height + 15) / 16, 1];
+        let work_group_count = [width.div_ceil(16), height.div_ceil(16), 1];
         let descriptor_set_layout = pipeline.layout().set_layouts().first().unwrap();
         let render_command_buffers = render_surface
             .views()
             .iter()
             .map(|view| {
-                let descriptor_set = PersistentDescriptorSet::new(
-                    descriptor_set_allocator,
+                let descriptor_set = DescriptorSet::new(
+                    descriptor_set_allocator.clone(),
                     descriptor_set_layout.clone(),
                     [
                         WriteDescriptorSet::image_view(0, view.clone()),
@@ -162,7 +155,7 @@ impl Renderer {
                 .unwrap();
 
                 let mut builder = AutoCommandBufferBuilder::primary(
-                    command_buffer_allocator,
+                    command_buffer_allocator.clone(),
                     queue.queue_family_index(),
                     command_buffer::CommandBufferUsage::MultipleSubmit,
                 )
@@ -183,9 +176,10 @@ impl Renderer {
                         0,
                         vec![descriptor_set],
                     )
-                    .unwrap()
-                    .dispatch(work_group_count)
                     .unwrap();
+                unsafe {
+                    builder.dispatch(work_group_count).unwrap();
+                }
                 builder.build().unwrap()
             })
             .collect::<Vec<_>>()
@@ -194,81 +188,9 @@ impl Renderer {
 
         Self {
             queue: queue.clone(),
-            _pipeline: pipeline,
             render_surface,
             render_command_buffers,
-            _buffers: buffers.clone(),
-            _shader_descriptor: shader_descriptor,
         }
-    }
-
-    /// Recreates the command buffers, typically when the render surface is resized.
-    ///
-    /// ## Panics
-    ///
-    /// This function panics if the command buffers cannot be recreated, typically if the pipeline is out of date
-    /// or if the render surface is invalid.
-    pub fn _recreate_command_buffers(
-        &mut self,
-        descriptor_set_allocator: &Arc<StandardDescriptorSetAllocator>,
-        command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
-        render_surface: &Arc<dyn RenderSurface>,
-    ) {
-        let (width, height) = render_surface.size();
-
-        let work_group_count = [(width + 15) / 16, (height + 15) / 16, 1];
-        let descriptor_set_layout = self._pipeline.layout().set_layouts().first().unwrap();
-
-        self.render_command_buffers = render_surface
-            .views()
-            .iter()
-            .map(|view| {
-                let descriptor_set = PersistentDescriptorSet::new(
-                    descriptor_set_allocator,
-                    descriptor_set_layout.clone(),
-                    [
-                        WriteDescriptorSet::image_view(0, view.clone()),
-                        WriteDescriptorSet::buffer(1, self._buffers.camera_uniform.clone()),
-                        WriteDescriptorSet::buffer(2, self._buffers.triangles_buffer.clone()),
-                        WriteDescriptorSet::buffer(3, self._buffers.materials_buffer.clone()),
-                        WriteDescriptorSet::buffer(4, self._buffers.models_buffer.clone()),
-                        WriteDescriptorSet::buffer(5, self._buffers.bvhs_buffer.clone()),
-                    ],
-                    [],
-                )
-                .unwrap();
-
-                let mut builder = AutoCommandBufferBuilder::primary(
-                    command_buffer_allocator,
-                    self.queue.queue_family_index(),
-                    command_buffer::CommandBufferUsage::MultipleSubmit,
-                )
-                .unwrap();
-
-                builder
-                    .bind_pipeline_compute(self._pipeline.clone())
-                    .unwrap()
-                    .push_constants(
-                        self._pipeline.layout().clone(),
-                        0,
-                        crate::shader::source::ShaderConstants::from(self._shader_descriptor),
-                    )
-                    .unwrap()
-                    .bind_descriptor_sets(
-                        vulkano::pipeline::PipelineBindPoint::Compute,
-                        self._pipeline.layout().clone(),
-                        0,
-                        vec![descriptor_set],
-                    )
-                    .unwrap()
-                    .dispatch(work_group_count)
-                    .unwrap();
-                builder.build().unwrap()
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
-
-        tracing::trace!("Command buffers recreated");
     }
 
     /// Renders the scene.

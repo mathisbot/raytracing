@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-png = { version = "0.17.14", optional = true }
-tobj = { version = "4.0.2" }
-tracing = "0.1.40"
-vulkano = "0.34.1"
-vulkano-shaders = "0.34.0"
-winit = "0.28.7"
+png = { version = "0.18.1", optional = true }
+tobj = { version = "4.0.3" }
+tracing = "0.1.44"
+vulkano = "0.35.2"
+vulkano-shaders = { version = "0.35.0", features = ["shaderc-build-from-source"] }
+winit = "0.30.13"
 
 [features]
 default = []
